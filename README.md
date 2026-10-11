@@ -59,8 +59,9 @@ node test_frontend.cjs
 
 ## Base e licenças
 
-Painel publicado: https://monitoramento-parque-milene.famous-ash-6452.chatgpt.site.
-A hospedagem está privada; isso não substitui as regras RLS do Supabase.
+Painel publicado: https://monitoramento-parque.vercel.app/.
+O histórico exige login e RLS do Supabase. O painel original na ESP foi preservado.
+O endereço anterior em chatgpt.site continua privado, mas não é o endereço principal.
 Prepare/teste com `node cloud/build.mjs` e `node cloud/test_cloud.cjs` na raiz.
 Não é necessário manter um servidor no notebook para a versão publicada.
 
