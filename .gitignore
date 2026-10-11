@@ -1,0 +1,23 @@
+# ESP-WHO is downloaded at the pinned revision by preparar.ps1.
+/esp-who/
+**/build/
+**/managed_components/
+**/__pycache__/
+*.pyc
+*.log
+.env
+.env.*
+!.env.example
+**/data/
+**/.supabase/
+*.pem
+*.key
+*.bin
+*.elf
+*.map
+*.mp4
+*.jpeg
+*.jpg
+*.csv
+.DS_Store
+

@@ -1,0 +1,13 @@
+menu "Visitor counter board"
+    config APP_BOARD_FREENOVE_S3
+        bool "Freenove ESP32-S3 WROOM N8R8 without LCD"
+        depends on IDF_TARGET_ESP32S3
+        default y
+        select CAMERA_OV3660
+        select CAMERA_OV3660_DVP_RGB565_BE_240X240_24FPS
+        select CAMERA_GC0308
+        select CAMERA_GC0308_DVP_RGB565_BE_320X240_20FPS
+        help
+            Uses the camera wiring shared with ESP32-S3-EYE, but does not
+            initialize the EYE LCD, LED or SD card. Results use UART0.
+endmenu
