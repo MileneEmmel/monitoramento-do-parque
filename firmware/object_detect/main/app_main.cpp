@@ -7,6 +7,7 @@
 #include "camera_preview.hpp"
 #include "visitor_counter.hpp"
 #include "park_history.hpp"
+#include "park_cloud.hpp"
 #include "who_yield2idle.hpp"
 #if defined(CONFIG_HUMAN_FACE_DETECT_MODEL_LOCATION)
 #include "human_face_detect.hpp"
@@ -106,6 +107,7 @@ void run_detect_term()
     if (!camera_preview_start()) {
         ESP_LOGW("PREVIEW", "Preview could not start; detection will continue without it.");
     }
+    if (!park_cloud_start()) ESP_LOGE("PARK_CLOUD", "Cloud worker could not start; SD recording continues");
     auto detect_app = new FreenoveDetectApp(frame_cap);
 #else
     auto detect_app = new WhoDetectAppTerm(frame_cap);

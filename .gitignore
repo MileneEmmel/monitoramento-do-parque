@@ -20,4 +20,8 @@
 *.jpg
 *.csv
 .DS_Store
+/cloud/dist/
+/cloud/site-source.zip
+/cloud/.openai/local/
+/cloud-proof.png
 

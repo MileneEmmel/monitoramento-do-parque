@@ -16,9 +16,9 @@ Não publicar chaves administrativas nem credenciais de Wi-Fi.
 Página de câmera para instalação e manutenção: imagem ao vivo, linhas A/B e
 calibração. Wi-Fi e acesso local ficam disponíveis dentro dos ajustes dessa tela.
 Não carregar gráficos nem histórico na versão local final.
-O endereço local não é acessível de fora da rede. O painel online informa essa
-limitação e oferece abrir os ajustes locais; não incorpora o stream HTTP em HTTPS
-nem tenta contornar proteções do navegador. Não expor portas da ESP na internet.
+O endereço local não é acessível de fora da rede. Por solicitação da usuária,
+o dashboard online não tem menu nem atalho da câmera. O vídeo fica somente na ESP.
+Não incorporar stream HTTP em HTTPS nem expor portas da ESP na internet.
 
 ## Sincronização
 
@@ -50,5 +50,9 @@ Não há promessa de redução específica de temperatura ou ganho de FPS sem me
 4. Publicar o dashboard online com login e dados reais.
 5. Conferir acesso remoto e só então substituir a interface local pela câmera.
 
-Estado atual: arquitetura definida; nuvem ainda não configurada nem publicada.
-O dashboard local existente permanece até a verificação do substituto online.
+Estado em 11/10/2026: Supabase configurado e testado; dashboard publicado em Sites
+owner-private; sincronizador compilado e gravado. Login da aplicação verificado.
+Primeiro envio real e recuperação offline ainda precisam de validação. O painel
+local existente permanece até essa confirmação, antes da troca por câmera/ajustes.
+Sites exige login ChatGPT além do login Supabase. Acesso de outros responsáveis
+à hospedagem ainda precisa de definição; não presumir que o link é público.

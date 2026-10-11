@@ -5,6 +5,7 @@
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
 #include "visitor_counter.hpp"
+#include "mbedtls/sha256.h"
 #include <algorithm>
 #include <cinttypes>
 #include <cerrno>
@@ -21,6 +22,8 @@
 #include "freertos/task.h"
 namespace {
 constexpr const char *HISTORY_DIR = "/sdcard/park-monitor-v1";
+constexpr const char *CURSOR_DIR = "/sdcard/park-cloud-v1";
+bool cloud_protected = false;
 constexpr const char *HEADER =
     "epoch,boot,uptime_ms,total_entries,total_exits,entries,exits,covered_seconds,kind,gap,storage_ok,checksum\n";
 SemaphoreHandle_t mutex = nullptr;
@@ -48,6 +51,16 @@ uint32_t checksum(const char *s)
         h *= 16777619u;
     }
     return h;
+}
+long cloud_cursor(const std::string &file, long size)
+{
+    FILE *f = fopen((std::string(CURSOR_DIR) + "/" + file + ".ack").c_str(), "r");
+    long offset = 0; unsigned crc = 0;
+    if (!f) return 0;
+    const int read = fscanf(f, "%ld,%x", &offset, &crc);
+    fclose(f);
+    const auto seal = file + ":" + std::to_string(offset);
+    return read == 2 && offset >= 0 && offset <= size && crc == checksum(seal.c_str()) ? offset : 0;
 }
 std::string encode(const Row &r)
 {
@@ -458,6 +471,89 @@ cJSON *park_history_report(const std::string &start, const std::string &end)
     if (mutex) xSemaphoreGive(mutex);
     return j;
 }
+void park_history_cloud_protect()
+{
+    if (!mutex) return;
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    cloud_protected = true;
+    xSemaphoreGive(mutex);
+}
+ParkCloudBatch park_history_cloud_batch()
+{
+    ParkCloudBatch batch;
+    if (!mutex) return batch;
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    auto *directory = mounted ? opendir(HISTORY_DIR) : nullptr;
+    std::vector<std::string> files;
+    if (directory) {
+        while (auto *entry = readdir(directory)) {
+            std::string name(entry->d_name);
+            if (name.size() == 14 && name.substr(10) == ".csv" && day_epoch(name.substr(0,10)) >= 0)
+                files.push_back(name);
+        }
+        closedir(directory);
+        std::sort(files.begin(), files.end());
+        batch.ok = true;
+    }
+    for (const auto &name : files) {
+        const auto path = std::string(HISTORY_DIR) + "/" + name;
+        struct stat st = {};
+        if (stat(path.c_str(), &st) != 0) { batch.ok=false; break; }
+        long offset = cloud_cursor(name, st.st_size);
+        if (offset == st.st_size) continue;
+        FILE *f = fopen(path.c_str(), "r");
+        if (!f) { batch.ok=false; break; }
+        char line[384];
+        if (!fgets(line,sizeof(line),f) || strcmp(line,HEADER)) { fclose(f);batch.ok=false;break; }
+        batch.file=name; batch.from=offset;
+        if (offset && fseek(f,offset,SEEK_SET)!=0) { fclose(f);batch.ok=false;break; }
+        batch.records=cJSON_CreateArray();
+        while (cJSON_GetArraySize(batch.records)<32 && fgets(line,sizeof(line),f)) {
+            // A partial or corrupt row must never be acknowledged/skipped silently.
+            if (!strchr(line,'\n')) { batch.ok=false; break; }
+            unsigned char digest[32];
+            if (mbedtls_sha256(reinterpret_cast<const unsigned char *>(line),strlen(line),digest,0)!=0) {batch.ok=false;break;}
+            char identity[65];
+            for (unsigned i=0;i<32;++i) snprintf(identity+i*2,3,"%02x",digest[i]);
+            Row row;
+            if (!decode(line,row) || row.epoch < 1704067200) { batch.ok=false;break; }
+            auto item=cJSON_CreateObject();
+            cJSON_AddStringToObject(item,"id",identity);
+            cJSON_AddNumberToObject(item,"epoch",row.epoch);
+            count(item,"entries",row.e);count(item,"exits",row.x);
+            cJSON_AddStringToObject(item,"kind",row.kind);
+            cJSON_AddItemToArray(batch.records,item);
+        }
+        batch.to=ftell(f);
+        if (ferror(f) || batch.to < 0) batch.ok=false;
+        fclose(f);
+        break;
+    }
+    xSemaphoreGive(mutex);
+    return batch;
+}
+bool park_history_cloud_ack(const ParkCloudBatch &batch)
+{
+    if (!mutex || !batch.ok || batch.file.empty() || batch.to < batch.from) return false;
+    xSemaphoreTake(mutex,portMAX_DELAY);
+    const auto source=std::string(HISTORY_DIR)+"/"+batch.file;
+    struct stat st = {};
+    bool ok=stat(source.c_str(),&st)==0 && st.st_size>=batch.to && cloud_cursor(batch.file,st.st_size)==batch.from;
+    if (ok) {
+        ok=mkdir(CURSOR_DIR,0775)==0 || (stat(CURSOR_DIR,&st)==0 && S_ISDIR(st.st_mode));
+        const auto path=std::string(CURSOR_DIR)+"/"+batch.file+".ack";
+        FILE *f=ok?fopen(path.c_str(),"w"):nullptr;
+        if (!f) ok=false;
+        else {
+            const auto seal=batch.file+":"+std::to_string(batch.to);
+            ok=fprintf(f,"%ld,%08" PRIx32 "\n",batch.to,checksum(seal.c_str()))>0;
+            if (fflush(f)!=0 || fsync(fileno(f))!=0) ok=false;
+            if (fclose(f)!=0) ok=false;
+        }
+    }
+    xSemaphoreGive(mutex);
+    return ok;
+}
 std::string park_history_csv(const std::string &start, const std::string &end)
 {
     auto report = park_history_report(start, end);
@@ -508,10 +604,14 @@ cJSON *park_history_cleanup(const std::string &before, bool erase, const std::st
             if (day_epoch(date) < 0 || date_at(day_epoch(date)) != date || date >= before || date >= today) continue;
             const auto path = std::string(HISTORY_DIR) + "/" + name;
             struct stat st = {};
-            if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
+              if (stat(path.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) {
                 failure = "Falha ao consultar um arquivo. Nenhuma limpeza iniciada.";
                 break;
             }
+              if (cloud_protected && cloud_cursor(name, st.st_size) < st.st_size) {
+                  failure = "Há registros ainda não sincronizados com a nuvem. Aguarde antes de limpar.";
+                  break;
+              }
             // A matching name is insufficient: verify our journal header too.
             FILE *f = fopen(path.c_str(), "r");
             char header[256] = {};

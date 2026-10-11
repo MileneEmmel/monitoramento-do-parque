@@ -11,3 +11,12 @@ cJSON *park_history_report(const std::string &start, const std::string &end);
 bool park_history_range(const std::string &start, const std::string &end);
 std::string park_history_csv(const std::string &start, const std::string &end);
 cJSON *park_history_cleanup(const std::string &before, bool erase, const std::string &plan);
+struct ParkCloudBatch {
+    std::string file;
+    long from = 0, to = 0;
+    cJSON *records = nullptr;
+    bool ok = false;
+};
+ParkCloudBatch park_history_cloud_batch();
+bool park_history_cloud_ack(const ParkCloudBatch &batch);
+void park_history_cloud_protect();

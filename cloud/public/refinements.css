@@ -1,0 +1,30 @@
+/* Keep the incumbent dashboard's spacing and reading surfaces. */
+.cloud-heading { padding-top:24px; align-items:center; }
+.cloud-heading > div { display:grid; grid-template-columns:minmax(160px,240px) 1fr; align-items:center; column-gap:24px; }
+.cloud-heading > div > label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.cloud-heading select { grid-row:1 / 3; margin:0; }
+.cloud-heading h1 { margin:0; }
+.cloud-heading #access-name { grid-column:2; }
+#sync-note { padding-bottom:24px; border-bottom:1px solid var(--line); }
+.cloud-period { justify-content:space-between; margin:28px 0 36px; }
+.cloud-period .date-form { flex-basis:100%; margin:4px 0 0; }
+.cloud-chart { min-height:340px; padding-top:48px; }
+.cloud-bars { height:230px; }
+.chart-totals .metric-label { display:flex; align-items:center; gap:8px; }
+.cloud-empty { position:absolute; inset:80px 24px auto; margin:auto; max-width:45ch; text-align:center; color:var(--muted); }
+#chart-detail { position:absolute; left:50%; bottom:52px; transform:translateX(-50%); max-width:90%; padding:10px 18px; border-radius:16px; background:var(--ink); color:var(--canvas); pointer-events:none; text-align:center; }
+#page-overview .recent-panel { margin-top:40px; }
+#page-equipment { max-width:900px; }
+#page-equipment > .panel + .panel { margin-top:40px; padding-top:32px; border-top:1px solid var(--line); }
+#page-equipment .panel > h2, #page-history .panel > h2, #onboarding h2 { margin-bottom:16px; font-size:24px; }
+#page-equipment .panel > p, #onboarding > p { margin-bottom:20px; max-width:68ch; }
+#device-form { display:flex; align-items:end; gap:16px; max-width:760px; }
+#device-form label { flex:1; margin:0; }
+#device-secret { margin-top:28px; }
+#device-secret p { max-width:65ch; }
+#device-secret label { max-width:700px; }
+#device-list h3 { margin:20px 0 12px; font-size:20px; }
+#device-list > p { margin:20px 0; }
+.page-footer { margin-top:48px; }
+@media(max-width:900px) { .cloud-heading > div { display:block; } .cloud-heading select { margin-bottom:16px; } .cloud-heading #access-name { margin-top:8px; } }
+@media(max-width:600px) { main { padding-inline:20px; } .cloud-heading { gap:12px; } .cloud-heading h1 { font-size:30px; } .cloud-period { gap:20px; } .period-controls { flex-wrap:wrap; } .period-button { padding-inline:12px; } .cloud-period .date-form { gap:12px; } .plot-surface { padding-inline:12px; border-radius:24px; } .chart-totals { gap:28px; } .chart-totals strong { font-size:32px; } #device-form { display:grid; } #device-form button { justify-self:start; } .cloud-chart { min-height:300px; } }

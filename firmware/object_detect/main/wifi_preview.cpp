@@ -11,6 +11,7 @@
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "park_history.hpp"
+#include "park_cloud.hpp"
 #include "visitor_counter.hpp"
 #include <cstdio>
 #include <atomic>
@@ -465,7 +466,7 @@ void network_event(void *, esp_event_base_t base, int32_t id, void *data)
 
 void provision_task(void *)
 {
-    char line[512];
+    char line[1024];
     size_t used = 0;
     bool overflow = false;
     while (true) {
@@ -509,6 +510,17 @@ void provision_task(void *)
                 memset(password->valuestring, 0, strlen(password->valuestring));
             cJSON_Delete(json);
             fflush(stdout);
+        } else if (!overflow && strncmp(line,"@CLOUD ",7)==0) {
+            auto json=cJSON_Parse(line+7);
+            const bool ok=park_cloud_configure(json);
+            auto secret=cJSON_GetObjectItem(json,"token");
+            if(cJSON_IsString(secret)) memset(secret->valuestring,0,strlen(secret->valuestring));
+            cJSON_Delete(json);
+            printf("\n@CLOUD_CONFIG {\"ok\":%s}\n",ok?"true":"false");fflush(stdout);
+        } else if (!overflow && strcmp(line,"@CLOUD_STATUS")==0) {
+            auto json=park_cloud_status();auto output=cJSON_PrintUnformatted(json);
+            if(output) {printf("\n@CLOUD_STATUS %s\n",output);cJSON_free(output);}
+            cJSON_Delete(json);fflush(stdout);
         } else if (!overflow && strcmp(line, "@WIFI_STATUS") == 0) {
             esp_netif_ip_info_t ip = {};
             auto netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
