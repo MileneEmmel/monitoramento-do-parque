@@ -3,7 +3,7 @@
 Projeto `monitoramento-do-parque`, Free, São Paulo (sa-east-1).
 URL pública de identificação: https://pcxeestzvcpbfkcbuqpa.supabase.co
 
-As duas migrações em `migrations/` foram aplicadas pelo SQL Editor em 11/10/2026.
+As quatro migrações em `migrations/` foram aplicadas pelo SQL Editor em 11/10/2026.
 Não reaplicar sobre as mesmas tabelas. Uma futura integração de migrações precisa
 registrar essa linha de base. Ver `../dashboard/NUVEM.md` para a arquitetura.
 
@@ -11,10 +11,15 @@ RLS limita leitura aos membros do parque. Só proprietários cadastram placas.
 Cada token de ESP permite apenas enviar dados do dispositivo correspondente;
 o banco armazena apenas seu SHA-256, em esquema privado.
 `tests.sql` passou: token incorreto e leitura anônima negados, isolamento entre
-usuários, deduplicação, inteiros exatos, fuso de Brasília e limite de período.
+usuários, deduplicação, inteiros exatos, fuso de Brasília, limite de período,
+rotação de credencial e edição da identificação somente pelo proprietário.
 Os dados sintéticos foram revertidos por ROLLBACK.
 
-Ativação: entre no painel, selecione Pedreiras, gere a credencial em Equipamento
+O painel fica vinculado à ESP definida pelo identificador público `deviceId` em
+`cloud/public/config.js`; o identificador não é uma chave e não contorna RLS.
+Não há seleção nem criação de parques na interface. O proprietário pode editar
+nome e ponto de contagem em “Editar identificação”, sem criar outro cadastro.
+Ativação: entre no painel, gere a credencial em Equipamento
 e execute `firmware/object_detect/configure_cloud.py` no terminal com pyserial.
 Informe ID e token interativamente. O token não aparece nem é salvo no notebook;
 ele vai pelo USB apenas para a Freenove identificada pelo número de série.
