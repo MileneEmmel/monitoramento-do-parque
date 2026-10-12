@@ -141,3 +141,150 @@
     display: none !important;
   }
 }
+.date-form.range-picker {
+  display: block;
+  width: min(100%, 430px);
+  box-sizing: border-box;
+  padding: 22px;
+  margin: 0 0 30px;
+  border: 1px solid #c8d8b9;
+  border-radius: 26px;
+  background: #e1edcf;
+  color: #203d2e;
+}
+.range-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.range-picker button {
+  font: inherit;
+  cursor: pointer;
+}
+.range-fields button {
+  min-height: 72px;
+  padding: 10px 14px;
+  border: 1px solid #acbf98;
+  border-radius: 16px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.range-fields span,
+.range-fields strong {
+  display: block;
+}
+.range-fields span {
+  font-size: 16px;
+}
+.range-fields strong {
+  font-size: 19px;
+  font-weight: 600;
+}
+.range-fields button[aria-pressed='true'] {
+  border-color: #205b3c;
+  background: #edf4e3;
+  box-shadow: inset 0 0 0 1px #205b3c;
+}
+.range-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 20px 0 12px;
+}
+.range-heading h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.range-heading button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: #cfe0b8;
+  color: #203d2e;
+  font-size: 30px;
+  line-height: 1;
+}
+.range-weekdays,
+.range-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  text-align: center;
+}
+.range-weekdays {
+  margin-bottom: 8px;
+  color: #50634c;
+  font-size: 16px;
+}
+.range-day {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  margin: 2px 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #203d2e;
+}
+.range-day.outside {
+  color: #64745b;
+}
+.range-day.between {
+  background: #cadfb1;
+  border-radius: 0;
+}
+.range-day.endpoint {
+  background: #205b3c;
+  color: #fff;
+  font-weight: 700;
+}
+.range-day[aria-current='date'] {
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+.range-picker button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+.range-day:not(:disabled):hover {
+  box-shadow: inset 0 0 0 2px #205b3c;
+}
+.range-picker button:focus-visible {
+  outline: 3px solid #175b91;
+  outline-offset: 2px;
+}
+.range-hint {
+  min-height: 24px;
+  margin: 16px 0;
+  font-size: 16px;
+  color: #50634c;
+}
+.range-picker .button {
+  width: 100%;
+  min-height: 48px;
+}
+@media (max-width: 560px) {
+  .date-form.range-picker {
+    padding: 14px;
+    border-radius: 20px;
+  }
+  .range-fields button {
+    padding: 9px;
+  }
+  .range-fields strong {
+    font-size: 17px;
+  }
+  .range-heading h2 {
+    font-size: 19px;
+  }
+  .range-weekdays {
+    font-size: 14px;
+  }
+  .range-day {
+    font-size: 16px;
+  }
+}

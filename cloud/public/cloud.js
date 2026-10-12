@@ -137,19 +137,26 @@ $('sign-out').addEventListener('click', async () => {
   render();
   showAuth();
 });
-function setDates(n) {
+const datePicker = new window.ParkDateRange(today);
+function selectPeriod(n) {
   days = n;
+  document.querySelectorAll('[data-days]').forEach((b) => {
+    const active = +b.dataset.days === n;
+    b.classList.toggle('selected', active);
+    b.setAttribute('aria-pressed', String(active));
+  });
+  $('custom-period').classList.toggle('selected', n === 0);
+  $('custom-period').setAttribute('aria-pressed', String(n === 0));
+}
+function setDates(n) {
+  selectPeriod(n);
+  datePicker.close();
   end = today();
   const d = new Date(end + 'T12:00:00-03:00');
   d.setUTCDate(d.getUTCDate() - n + 1);
   start = d.toISOString().slice(0, 10);
   $('date-start').value = start;
   $('date-end').value = end;
-  document.querySelectorAll('[data-days]').forEach((b) => {
-    const active = +b.dataset.days === n;
-    b.classList.toggle('selected', active);
-    b.setAttribute('aria-pressed', String(active));
-  });
 }
 document.querySelectorAll('[data-days]').forEach((b) =>
   b.addEventListener('click', () => {
@@ -168,18 +175,15 @@ $('date-form').addEventListener('submit', (event) => {
   }
   start = a;
   end = b;
-  days = 0;
+  selectPeriod(0);
   generation++;
-  document.querySelectorAll('[data-days]').forEach((b) => {
-    b.classList.remove('selected');
-    b.setAttribute('aria-pressed', 'false');
-  });
+  datePicker.close();
+  $('custom-period').focus();
   refresh();
 });
 $('custom-period').addEventListener('click', () => {
-  const open = $('date-form').hidden;
-  $('date-form').hidden = !open;
-  $('custom-period').setAttribute('aria-expanded', String(open));
+  selectPeriod(0);
+  datePicker.open(start, end);
 });
 async function loadParks() {
   await refreshSession();
@@ -673,7 +677,7 @@ function setPage() {
   const show = !!park && ['overview', 'history'].includes(page);
   $('report-controls').hidden = !show;
   $('report-actions').hidden = !show;
-  if (!show) $('date-form').hidden = true;
+  if (!show) datePicker.close();
   $('chart-detail').hidden = true;
   if (report && page === 'overview') drawChart(report);
 }

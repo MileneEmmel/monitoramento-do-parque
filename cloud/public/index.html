@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/cloud.css" />
     <link rel="stylesheet" href="/refinements.css" />
     <script src="/config.js" defer></script>
+    <script src="/date-range.js" defer></script>
     <script src="/cloud.js" defer></script>
   </head>
   <body>
@@ -113,6 +114,7 @@
                 type="button"
                 id="custom-period"
                 class="period-button"
+                aria-pressed="false"
                 aria-expanded="false"
                 aria-controls="date-form"
               >
@@ -121,10 +123,30 @@
             </div>
             <span id="period-label"></span>
           </div>
-          <form id="date-form" class="date-form" hidden>
-            <label>De<input id="date-start" type="date" required /></label
-            ><label>Até<input id="date-end" type="date" required /></label
-            ><button class="button primary">Aplicar</button>
+          <form id="date-form" class="date-form range-picker" aria-label="Escolher período" hidden>
+            <input id="date-start" type="hidden" />
+            <input id="date-end" type="hidden" />
+            <div class="range-fields">
+              <button type="button" id="range-start"><span>De</span><strong></strong></button>
+              <button type="button" id="range-end"><span>Até</span><strong></strong></button>
+            </div>
+            <div class="range-heading">
+              <button type="button" id="range-prev" aria-label="Mês anterior">‹</button>
+              <h2 id="range-month"></h2>
+              <button type="button" id="range-next" aria-label="Próximo mês">›</button>
+            </div>
+            <div class="range-weekdays" aria-hidden="true">
+              <span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span
+              ><span>Sáb</span><span>Dom</span>
+            </div>
+            <div
+              id="range-days"
+              class="range-days"
+              role="group"
+              aria-labelledby="range-month"
+            ></div>
+            <p id="range-hint" class="range-hint" role="status" aria-live="polite"></p>
+            <button id="range-apply" class="button primary" type="submit">Aplicar período</button>
           </form>
           <section id="page-overview" class="page">
             <section class="chart-panel" aria-labelledby="chart-title">

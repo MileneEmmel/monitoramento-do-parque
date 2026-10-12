@@ -43,6 +43,7 @@ class Element {
   querySelectorAll() {
     return [];
   }
+  focus() {}
 }
 const elements = new Map();
 const get = (id) => {
@@ -84,6 +85,7 @@ const context = vm.createContext({
   AbortSignal,
   console,
 });
+vm.runInContext(fs.readFileSync(__dirname + '/public/date-range.js', 'utf8'), context);
 vm.runInContext(script, context);
 const run = (code) => vm.runInContext(code, context);
 assert.equal(run("number('18446744073709551615')"), '18.446.744.073.709.551.615');
@@ -91,6 +93,23 @@ assert.equal(run("escapeHTML('<img onerror=x>')"), '&lt;img onerror=x&gt;');
 assert.match(run('today()'), /^\d{4}-\d{2}-\d{2}$/);
 run('setDates(7)');
 assert.equal(run('(new Date(end)-new Date(start))/86400000'), 6);
+get('custom-period').listeners.click();
+assert.equal(get('custom-period').attributes['aria-pressed'], 'true');
+assert.equal(get('date-form').hidden, false);
+get('custom-period').listeners.click();
+assert.equal(get('date-form').hidden, false, 'Clicking the active period must not toggle it off');
+run("datePicker.choose('2026-01-15'); datePicker.choose('2026-01-10')");
+assert.equal(get('date-start').value, '2026-01-10');
+assert.equal(get('date-end').value, '2026-01-15');
+assert.equal(get('range-apply').disabled, false);
+run("datePicker.choose('2024-01-01'); datePicker.choose('2026-01-01')");
+assert.equal(get('range-apply').disabled, true);
+run("datePicker.choose('2999-01-01')");
+assert.equal(get('date-start').value, '2024-01-01');
+run('setDates(30)');
+assert.equal(get('custom-period').attributes['aria-pressed'], 'false');
+assert.equal(get('custom-period').attributes['aria-expanded'], 'false');
+assert.equal(get('date-form').hidden, true);
 run(
   'drawChart({has_samples:true,entries:"9007199254740993",exits:"2",chart:[{label:"10h",entries:"9007199254740993",exits:"2",samples:1}]})',
 );

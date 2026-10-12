@@ -51,6 +51,7 @@ Cada linha tem checksum. `park_history_cloud_batch()` monta até oito linhas dat
 | --- | --- |
 | `cloud/public/index.html` | Dashboard, autenticação e gestão. |
 | `cloud/public/cloud.js` | Sessão, REST/RPC, gráfico SVG, histórico, CSV e ações do proprietário. |
+| `cloud/public/date-range.js` | Calendário de intervalo: seleção, navegação por teclado e validação de datas. |
 | `cloud/public/cloud.css`, `refinements.css` | Estilos específicos online. |
 | `cloud/public/config.js` | URL pública do Supabase, chave publishable e ID da placa. |
 | `dashboard/local-public/index.html` | Câmera, calibração e Wi-Fi. |
