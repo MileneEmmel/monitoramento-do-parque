@@ -108,7 +108,12 @@ window.ParkDateRange = class ParkDateRange {
     const selection = focus || (this.field === 'end' ? b || a : a) || this.today();
     const target = selection.slice(0, 7) === this.month.slice(0, 7) ? selection : this.month;
     let focused;
-    for (let i = 0; i < 42; i++) {
+    // Render only the weeks needed by this month, without an empty sixth row.
+    const last = this.date(this.month);
+    last.setUTCMonth(last.getUTCMonth() + 1);
+    last.setUTCDate(0);
+    const cells = Math.ceil(((last - first) / 86400000 + 1) / 7) * 7;
+    for (let i = 0; i < cells; i++) {
       const d = new Date(first);
       d.setUTCDate(d.getUTCDate() + i);
       const value = this.iso(d),
