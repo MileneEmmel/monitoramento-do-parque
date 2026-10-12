@@ -16,6 +16,7 @@ struct ParkCloudBatch {
     long from = 0, to = 0;
     cJSON *records = nullptr;
     bool ok = false;
+    const char *error = "sd_not_ready";
 };
 ParkCloudBatch park_history_cloud_batch();
 bool park_history_cloud_ack(const ParkCloudBatch &batch);

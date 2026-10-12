@@ -34,10 +34,10 @@ def discover(port='COM5', watch=0, reset=False):
             elif any(s in line for s in ('PARK_SD','FREENOVE','Camera + AI OK','Guru Meditation','Stack canary','CORRUPT HEAP','assert failed','Brownout','camera','boot:','rst:','Backtrace:','WIFI_PREVIEW','wifi:','esp_video')):
                 diagnostics.append(line.strip())
             if url and not watch:break
-    if not url:raise RuntimeError('A ESP não confirmou o Wi-Fi pelo USB. Diagnósticos filtrados: '+repr(diagnostics))
+    if not url:raise RuntimeError('A ESP não confirmou o Wi-Fi pelo USB. Consulte a rede salva; logs brutos não são exibidos para proteger credenciais.')
     return url,diagnostics
 
-def verify(url, sync_time=True):
+def verify(url, sync_time=False):
     base,key=url.split('/#',1)
     opener=build_opener(ProxyHandler({}))
     def call(path,body=None,auth=True):
@@ -52,35 +52,38 @@ def verify(url, sync_time=True):
     for path,mime in (('/','text/html'),('/app.js','text/javascript'),('/style.css','text/css'),('/folhagem-v2.webp','image/webp'),('/source-sans-3-v1.woff2','font/woff2')):
         started=time.monotonic()
         content,headers=call(path,auth=False)
-        expected=Path(__file__).parent/'public'/('index.html' if path=='/' else path[1:])
+        folder='local-public' if path in ('/','/app.js') else 'public'
+        expected=Path(__file__).parent/folder/('index.html' if path=='/' else path[1:])
         assert headers.get_content_type()==mime,(path,headers.get_content_type())
         assert hashlib.sha256(content).digest()==hashlib.sha256(expected.read_bytes()).digest(),path+' differs from local build'
         assets.append({'path':path,'bytes':len(content),'response_ms':round((time.monotonic()-started)*1000),'hash':'PASS'})
     try:call('/api/state',auth=False)
     except HTTPError as e:assert e.code==401
     else:raise AssertionError('API sem autenticação')
-    for path,body in (('/api/wifi',{'ssid':'invalid','password':'x'}),('/api/reset',{'confirm':'NÃO'}),('/api/calibration',{'first':.9,'second':.1,'horizontal':False,'reverse':False})):
+    for path,body in (('/api/wifi',{'ssid':'invalid','password':'x'}),('/api/calibration',{'first':.9,'second':.1,'horizontal':False,'reverse':False})):
         try:call(path,body)
         except HTTPError as e:assert e.code==400,(path,e.code)
         else:raise AssertionError('Entrada inválida aceita: '+path)
     frames=[]
     for _ in range(3):
         t=time.monotonic();f=json.loads(call('/api/frame')[0]);frames.append({'received':f['received'],'age':f['age'],'response_ms':round((time.monotonic()-t)*1000),'image':bool(f['frame'] and f['frame'].get('jpeg'))});time.sleep(.7)
-    assert all(f['image'] and f['age']<6 for f in frames),frames
+    # The first request wakes JPEG conversion after a paused/hidden camera.
+    # It may return the old cached image; subsequent frames must be fresh.
+    assert all(f['image'] for f in frames) and all(f['age']<6 for f in frames[1:]),frames
     assert frames[-1]['received']>frames[0]['received'],frames
     csv,_=call('/api/export.csv?start='+state['today']+'&end='+state['today'])
     assert csv.startswith(b'data,entradas,saidas')
     return {'address':base,'today':state['today'],'totals':{k:state['device']['counter'][k] for k in ('entries','exits')},'storage':state['storage'],'report':{k:state['report'][k] for k in ('sample_count','entries','exits')},'assets':assets,'frames':frames,'csv_bytes':len(csv),'auth_and_invalid_inputs':'PASS'}
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--watch',type=int,default=0);parser.add_argument('--reboot',action='store_true');args=parser.parse_args()
-    url,logs=discover(watch=args.watch,reset=args.reboot)
+    parser=argparse.ArgumentParser();parser.add_argument('--port',default='COM5');parser.add_argument('--watch',type=int,default=0);parser.add_argument('--reboot',action='store_true');parser.add_argument('--sync-time',action='store_true');args=parser.parse_args()
+    url,logs=discover(port=args.port,watch=args.watch)
     persistence=None
     if args.reboot:
-        before=verify(url)
-        url,boot_logs=discover(watch=35,reset=True)
+        before=verify(url,sync_time=args.sync_time)
+        url,boot_logs=discover(port=args.port,watch=35,reset=True)
         logs.extend(boot_logs)
         after=verify(url,sync_time=False)
         assert after['storage']['ok'] and after['report']['sample_count']>=before['report']['sample_count']
         persistence={'before_samples':before['report']['sample_count'],'after_samples':after['report']['sample_count'],'before_totals':before['totals'],'after_totals':after['totals'],'result':'PASS'}
-    print(json.dumps({'diagnostics':logs,'verification':verify(url),'reboot_persistence':persistence},ensure_ascii=True,indent=2))
+    print(json.dumps({'diagnostic_lines':len(logs),'verification':verify(url,sync_time=args.sync_time),'reboot_persistence':persistence},ensure_ascii=True,indent=2))

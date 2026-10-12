@@ -135,36 +135,6 @@ esp_err_t counter_handler(httpd_req_t *req)
     return httpd_resp_send(req, json.c_str(), json.size());
 }
 
-esp_err_t reset_counter_handler(httpd_req_t *req)
-{
-    if (!authorized(req))
-        return ESP_OK;
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    if (req->content_len <= 0 || req->content_len > 64)
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid reset confirmation");
-    char body[65] = {};
-    int received = 0;
-    while (received < req->content_len) {
-        int n = httpd_req_recv(req, body + received, req->content_len - received);
-        if (n <= 0)
-            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Incomplete body");
-        received += n;
-    }
-    cJSON *json = cJSON_Parse(body);
-    auto confirmation = cJSON_GetObjectItemCaseSensitive(json, "confirm");
-    bool confirmed = cJSON_IsString(confirmation) && strcmp(confirmation->valuestring, "ZERAR") == 0;
-    cJSON_Delete(json);
-    if (!confirmed)
-        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Explicit confirmation required");
-    park_history_capture();
-    if (!visitor_counter_reset_totals())
-        return httpd_resp_send_err(
-            req, HTTPD_500_INTERNAL_SERVER_ERROR, "Reset could not be saved; check counter state");
-    park_history_capture();
-    const auto state = visitor_counter_json(visitor_counter_snapshot());
-    httpd_resp_set_type(req, "application/json; charset=utf-8");
-    return httpd_resp_send(req, state.c_str(), state.size());
-}
 
 esp_err_t frame_handler(httpd_req_t *req)
 {
@@ -376,12 +346,12 @@ esp_err_t cleanup_handler(httpd_req_t *req)
     if (cJSON_GetObjectItem(result, "error")) httpd_resp_set_status(req, "400 Bad Request");
     return send_json(req, result);
 }
-esp_err_t state_handler(httpd_req_t *req)
+esp_err_t state_response(httpd_req_t *req, bool include_report)
 {
     if (!authorized(req))
         return ESP_OK;
     std::string start, end;
-    if (!requested_range(req, start, end))
+    if (include_report && !requested_range(req, start, end))
         return api_error(req, "Escolha até 366 dias válidos, sem datas futuras.");
     auto j = cJSON_CreateObject();
     cJSON_AddStringToObject(j, "today", park_today().c_str());
@@ -420,9 +390,12 @@ esp_err_t state_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(wifi, "rssi", connected ? ap.rssi : 0);
     cJSON_AddBoolToObject(wifi, "busy", wifi_queue && uxQueueMessagesWaiting(wifi_queue) > 0);
     cJSON_AddItemToObject(j, "storage", park_history_status());
-    cJSON_AddItemToObject(j, "report", park_history_report(start, end));
+    cJSON_AddItemToObject(j, "cloud", park_cloud_status());
+    if (include_report) cJSON_AddItemToObject(j, "report", park_history_report(start, end));
     return send_json(req, j);
 }
+esp_err_t state_handler(httpd_req_t *req) { return state_response(req, true); }
+esp_err_t local_handler(httpd_req_t *req) { return state_response(req, false); }
 esp_err_t export_handler(httpd_req_t *req)
 {
     if (!authorized(req))
@@ -587,7 +560,7 @@ bool wifi_preview_start()
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, network_event, nullptr));
     httpd_config_t http = HTTPD_DEFAULT_CONFIG();
     http.stack_size = 12288;
-    http.max_uri_handlers = 20;
+    http.max_uri_handlers = 16;
     http.lru_purge_enable = true;
     http.send_wait_timeout = 2;
     http.recv_wait_timeout = 2;
@@ -598,24 +571,7 @@ bool wifi_preview_start()
     root.uri = "/";
     root.method = HTTP_GET;
     root.handler = service_handler;
-    httpd_uri_t frames = {};
-    frames.uri = "/frame.json";
-    frames.method = HTTP_GET;
-    frames.handler = frame_handler;
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &root));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &frames));
-    httpd_uri_t counts = {};
-    counts.uri = "/counter.json";
-    counts.method = HTTP_GET;
-    counts.handler = counter_handler;
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &counts));
-    counts.method = HTTP_POST;
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &counts));
-    httpd_uri_t reset = {};
-    reset.uri = "/counter/reset";
-    reset.method = HTTP_POST;
-    reset.handler = reset_counter_handler;
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &reset));
     const struct {
         const char *uri;
         httpd_method_t method;
@@ -625,9 +581,9 @@ bool wifi_preview_start()
                   {"/folhagem-v2.webp", HTTP_GET, service_handler},
                   {"/source-sans-3-v1.woff2", HTTP_GET, service_handler},
                   {"/api/state", HTTP_GET, state_handler},
+                  {"/api/local", HTTP_GET, local_handler},
                   {"/api/frame", HTTP_GET, frame_handler},
                   {"/api/calibration", HTTP_POST, counter_handler},
-                  {"/api/reset", HTTP_POST, reset_counter_handler},
                   {"/api/settings", HTTP_POST, settings_handler},
                   {"/api/wifi", HTTP_POST, wifi_handler},
                   {"/api/time", HTTP_POST, time_handler},
@@ -653,6 +609,25 @@ bool wifi_preview_start()
         esp_wifi_connect();
     ESP_LOGI(TAG, "Wi-Fi preview ready; configure using configure_wifi.py (2.4 GHz WPA2 network)");
     return true;
+}
+
+cJSON *wifi_preview_cloud_access()
+{
+    esp_netif_ip_info_t ip = {};
+    auto netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    wifi_ap_record_t ap;
+    if (!netif || strlen(token) != 32 || esp_wifi_sta_get_ap_info(&ap) != ESP_OK ||
+        esp_netif_get_ip_info(netif, &ip) != ESP_OK || !ip.ip.addr) return nullptr;
+    // Match the backend's private IPv4 allowlist. Networks with a public/local
+    // unsupported address still synchronize counts, just not camera discovery.
+    const uint8_t a = esp_ip4_addr1(&ip.ip), b = esp_ip4_addr2(&ip.ip);
+    if (!(a == 10 || (a == 172 && b >= 16 && b <= 31) || (a == 192 && b == 168))) return nullptr;
+    char address[16];
+    snprintf(address, sizeof(address), IPSTR, IP2STR(&ip.ip));
+    auto result = cJSON_CreateObject();
+    cJSON_AddStringToObject(result, "address", address);
+    cJSON_AddStringToObject(result, "access_key", token);
+    return result;
 }
 
 bool wifi_preview_requested()

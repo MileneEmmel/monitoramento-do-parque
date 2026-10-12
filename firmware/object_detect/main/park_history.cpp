@@ -494,29 +494,30 @@ ParkCloudBatch park_history_cloud_batch()
         closedir(directory);
         std::sort(files.begin(), files.end());
         batch.ok = true;
+        batch.error = "ready";
     }
     for (const auto &name : files) {
         const auto path = std::string(HISTORY_DIR) + "/" + name;
         struct stat st = {};
-        if (stat(path.c_str(), &st) != 0) { batch.ok=false; break; }
+        if (stat(path.c_str(), &st) != 0) { batch.ok=false; batch.error="sd_stat_failed"; break; }
         long offset = cloud_cursor(name, st.st_size);
         if (offset == st.st_size) continue;
         FILE *f = fopen(path.c_str(), "r");
-        if (!f) { batch.ok=false; break; }
+        if (!f) { batch.ok=false; batch.error="sd_open_failed"; break; }
         char line[384];
-        if (!fgets(line,sizeof(line),f) || strcmp(line,HEADER)) { fclose(f);batch.ok=false;break; }
+        if (!fgets(line,sizeof(line),f) || strcmp(line,HEADER)) { fclose(f);batch.ok=false;batch.error="sd_header_mismatch";break; }
         batch.file=name; batch.from=offset;
-        if (offset && fseek(f,offset,SEEK_SET)!=0) { fclose(f);batch.ok=false;break; }
+        if (offset && fseek(f,offset,SEEK_SET)!=0) { fclose(f);batch.ok=false;batch.error="sd_seek_failed";break; }
         batch.records=cJSON_CreateArray();
-        while (cJSON_GetArraySize(batch.records)<32 && fgets(line,sizeof(line),f)) {
+        while (cJSON_GetArraySize(batch.records)<8 && fgets(line,sizeof(line),f)) {
             // A partial or corrupt row must never be acknowledged/skipped silently.
-            if (!strchr(line,'\n')) { batch.ok=false; break; }
+            if (!strchr(line,'\n')) { batch.ok=false;batch.error="sd_partial_row"; break; }
             unsigned char digest[32];
             if (mbedtls_sha256(reinterpret_cast<const unsigned char *>(line),strlen(line),digest,0)!=0) {batch.ok=false;break;}
             char identity[65];
             for (unsigned i=0;i<32;++i) snprintf(identity+i*2,3,"%02x",digest[i]);
             Row row;
-            if (!decode(line,row) || row.epoch < 1704067200) { batch.ok=false;break; }
+            if (!decode(line,row) || row.epoch < 1704067200) { batch.ok=false;batch.error="sd_invalid_row";break; }
             auto item=cJSON_CreateObject();
             cJSON_AddStringToObject(item,"id",identity);
             cJSON_AddNumberToObject(item,"epoch",row.epoch);
@@ -525,7 +526,7 @@ ParkCloudBatch park_history_cloud_batch()
             cJSON_AddItemToArray(batch.records,item);
         }
         batch.to=ftell(f);
-        if (ferror(f) || batch.to < 0) batch.ok=false;
+        if (ferror(f) || batch.to < 0) {batch.ok=false;batch.error="sd_read_failed";}
         fclose(f);
         break;
     }

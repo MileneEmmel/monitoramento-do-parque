@@ -37,22 +37,37 @@ def main():
         if not sys.stdin.isatty():
             raise SystemExit('Execute no terminal para ocultar a chave.')
         device_id = input('ID da placa cadastrado no painel: ').strip()
+        print('Cole a chave e pressione Enter. O texto não ficará visível.', flush=True)
         token = getpass.getpass('Chave exclusiva de envio (oculta): ').strip()
         try:
             payload = command(device_id, token)
         except ValueError as error:
             raise SystemExit(str(error)) from None
         del token
-    with serial.Serial(args.port, 115200, timeout=0.5) as device:
-        time.sleep(3)
+    print('Entrada validada. Abrindo USB sem reiniciar a ESP…', flush=True)
+    device = serial.Serial()
+    device.port = args.port
+    device.baudrate = 115200
+    device.timeout = 0.5
+    device.write_timeout = 3
+    device.dtr = False
+    device.rts = False
+    try:
+        device.open()
+    except serial.SerialException:
+        raise SystemExit('COM5 ocupada ou indisponível. Feche o monitor serial ou outro configurador e tente novamente.') from None
+    with device:
         device.reset_input_buffer()
-        deadline = time.monotonic() + 75
+        # Finish a partial UART line left by a previously cancelled command.
+        device.write(b'\n')
+        deadline = time.monotonic() + 25
         next_query = 0
         pending = bytearray()
         while time.monotonic() < deadline:
             if time.monotonic() >= next_query:
                 device.write(payload if payload else b'@CLOUD_STATUS\n')
                 device.flush()
+                print('Comando enviado. Aguardando confirmação da placa…', flush=True)
                 next_query = time.monotonic() + 5
             pending.extend(device.read(device.in_waiting or 1))
             while b'\n' in pending:
@@ -70,12 +85,15 @@ def main():
                             raise SystemExit('A placa recusou a configuração.')
                         print('Credencial gravada apenas na ESP. O envio iniciará com Wi-Fi e horário válidos.')
                     else:
-                        print(json.dumps({k: result.get(k) for k in ('configured', 'syncing', 'last_http', 'last_success')}, ensure_ascii=False))
+                        print(json.dumps({k: result.get(k) for k in ('configured', 'device_id', 'syncing', 'last_http', 'last_success', 'phase', 'error', 'server_error')}, ensure_ascii=False))
                     return
             if len(pending) > 4096:
                 pending.clear()
-    raise SystemExit('Sem resposta. Confira o firmware e feche o monitor serial.')
+    raise SystemExit('A ESP não respondeu em 25 segundos. A gravação não foi confirmada. Não gere outra chave; verifique a inicialização da placa.')
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit('\nCancelado. A gravação pode ou não ter ocorrido; consulte --status antes de tentar novamente.') from None

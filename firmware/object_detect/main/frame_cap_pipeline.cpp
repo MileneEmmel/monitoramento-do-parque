@@ -4,6 +4,8 @@
 #include "bsp/esp-bsp.h"
 #include "esp_cam_sensor_xclk.h"
 #include "esp_check.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 using namespace who::frame_cap;
 
@@ -50,7 +52,6 @@ using namespace who::frame_cap;
 // The GC0308 fitted to this board requires 20 MHz, unlike the EYE's 16 MHz.
 static esp_err_t freenove_camera_start()
 {
-    ESP_RETURN_ON_ERROR(bsp_i2c_init(), "FREENOVE", "I2C init failed");
     esp_cam_sensor_xclk_handle_t clock = nullptr;
     esp_cam_sensor_xclk_config_t clock_cfg = {};
     clock_cfg.ledc_cfg.timer = LEDC_TIMER_1;
@@ -65,9 +66,16 @@ static esp_err_t freenove_camera_start()
         esp_cam_sensor_xclk_free(clock);
         return status;
     }
+    // Let the external sensor settle after its clock starts. A CPU reset does
+    // not power-cycle this board's camera.
+    vTaskDelay(pdMS_TO_TICKS(20));
     esp_video_init_dvp_config_t dvp = {};
-    dvp.sccb_config.init_sccb = false;
-    dvp.sccb_config.i2c_handle = bsp_i2c_get_handle();
+    // Let esp_video own SCCB: its bus setup includes a glitch filter. Do not
+    // share the EYE audio BSP bus or probe unrelated addresses after detection.
+    dvp.sccb_config.init_sccb = true;
+    dvp.sccb_config.i2c_config.port = BSP_I2C_NUM;
+    dvp.sccb_config.i2c_config.sda_pin = BSP_I2C_SDA;
+    dvp.sccb_config.i2c_config.scl_pin = BSP_I2C_SCL;
     dvp.sccb_config.freq = 100000;
     dvp.reset_pin = GPIO_NUM_NC;
     dvp.pwdn_pin = GPIO_NUM_NC;
@@ -88,16 +96,15 @@ static esp_err_t freenove_camera_start()
 WhoFrameCap *get_dvp_frame_cap_pipeline(bool lcd)
 {
 #if CONFIG_APP_BOARD_FREENOVE_S3
-    ESP_ERROR_CHECK(freenove_camera_start());
+    const auto camera_status = freenove_camera_start();
+    if (camera_status != ESP_OK) {
+        ESP_LOGE("FREENOVE", "Camera initialization failed: %s; preserving network recovery.",
+                 esp_err_to_name(camera_status));
+        return nullptr;
+    }
 #else
     bsp_camera_cfg_t cam_cfg{};
     ESP_ERROR_CHECK(bsp_camera_start(&cam_cfg));
-#endif
-#if CONFIG_APP_BOARD_FREENOVE_S3
-    for (uint8_t address : {uint8_t(0x21), uint8_t(0x30), uint8_t(0x3c)}) {
-        const esp_err_t status = i2c_master_probe(bsp_i2c_get_handle(), address, 100);
-        ESP_LOGI("FREENOVE", "Camera SCCB address 0x%02x: %s", address, esp_err_to_name(status));
-    }
 #endif
     // The ringbuf_len of FetchNode equals cam_fb_count - 2. The WhoFetchNode fb will display on lcd, if you want to
     // make sure the displayed detection result is synced with the frame, the ringbuf size must be big enough to

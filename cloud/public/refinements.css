@@ -1,3 +1,11 @@
 /* Preserve the original ESP spacing, green surfaces, typography and SVG chart. */
-.topbar .heading-actions{gap:24px;flex-wrap:wrap;justify-content:flex-end}
-@media(max-width:600px){.topbar .heading-actions{gap:12px}}
+.topbar .heading-actions {
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+@media (max-width: 600px) {
+  .topbar .heading-actions {
+    gap: 12px;
+  }
+}

@@ -97,10 +97,6 @@ void run_detect_term()
     auto frame_cap = get_mipi_csi_frame_cap_pipeline(false);
     // auto frame_cap = get_uvc_frame_cap_pipeline(false);
 #endif
-    if (!frame_cap) {
-        ESP_LOGE("MAIN", "Camera unavailable; detection was not started.");
-        return;
-    }
 #if CONFIG_APP_BOARD_FREENOVE_S3
     if (!visitor_counter_start()) ESP_LOGE("COUNTER", "Counting unavailable; check boot diagnostics");
     if (!park_history_start()) ESP_LOGE("PARK_SD", "History could not start");
@@ -108,8 +104,18 @@ void run_detect_term()
         ESP_LOGW("PREVIEW", "Preview could not start; detection will continue without it.");
     }
     if (!park_cloud_start()) ESP_LOGE("PARK_CLOUD", "Cloud worker could not start; SD recording continues");
+    // Retain network/configuration and upload the existing SD backlog even if
+    // the camera fails. Never manufacture new passage records in this mode.
+    if (!frame_cap) {
+        ESP_LOGE("MAIN", "Camera unavailable; counting stopped, network and SD synchronization remain available.");
+        return;
+    }
     auto detect_app = new FreenoveDetectApp(frame_cap);
 #else
+    if (!frame_cap) {
+        ESP_LOGE("MAIN", "Camera unavailable; detection was not started.");
+        return;
+    }
     auto detect_app = new WhoDetectAppTerm(frame_cap);
 #endif
     // create model later to avoid memory fragmentation.
@@ -139,6 +145,4 @@ extern "C" void app_main(void)
 #else
     run_detect_lcd();
 #endif
-    // try this if you don't have a lcd.
-    // run_detect_term();
 }

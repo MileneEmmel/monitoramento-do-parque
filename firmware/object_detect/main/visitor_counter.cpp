@@ -140,27 +140,6 @@ bool visitor_counter_configure(const park::Config &c) {
     if (ok) { counter.config=c; counter.clear_tracks(); ++revision; }
     xSemaphoreGive(mutex); return ok;
 }
-bool visitor_counter_reset_totals() {
-    if(!mutex || !save_mutex) return false;
-    xSemaphoreTake(save_mutex,portMAX_DELAY);
-    xSemaphoreTake(mutex,portMAX_DELAY);
-    bool ok=ready;
-    if(ok) {
-        Saved state={1,counter.config.first,counter.config.second,
-                     counter.config.horizontal,counter.config.reverse,0,0};
-        const esp_err_t error=write_state(state);
-        ok=error==ESP_OK;
-        storage_ok=ok;
-        if(ok) {
-            counter.reset_totals(esp_timer_get_time());
-            ++revision; saved_revision=revision;
-            ESP_LOGI("COUNTER","Totals reset by authenticated user; committed to NVS");
-        } else ESP_LOGE("COUNTER","Reset save failed: %s; RAM totals preserved",esp_err_to_name(error));
-    }
-    xSemaphoreGive(mutex);
-    xSemaphoreGive(save_mutex);
-    return ok;
-}
 std::string visitor_counter_json(const CountSnapshot &s) {
     char json[768];
     // Totals are strings to preserve uint64 precision in browser/exports.

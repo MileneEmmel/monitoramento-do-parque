@@ -1,42 +1,308 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Histórico de visitação do parque.">
-<title>Monitoramento do parque</title>
-<link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/cloud.css"><link rel="stylesheet" href="/refinements.css">
-<script src="/config.js" defer></script><script src="/cloud.js" defer></script>
-</head>
-<body>
-<a class="skip" href="#content">Ir para o conteúdo</a>
-<section id="login" class="login-view">
-  <div class="login-content"><h1>Monitoramento do parque</h1><p>Entre para consultar o histórico de visitação.</p>
-  <form id="login-form"><label>E-mail<input id="email" type="email" autocomplete="username" required></label><label>Senha<input id="password" type="password" autocomplete="current-password" required></label><button class="button primary" id="login-submit">Entrar</button></form>
-  <p id="login-message" role="status" class="form-message"></p><p class="small-note">O acesso é exclusivo dos responsáveis cadastrados.</p></div><img src="/folhagem-v2.webp" alt="" class="login-foliage">
-</section>
-<div id="application" hidden>
-<button class="menu-toggle" id="toggle-menu" aria-label="Minimizar menu" aria-controls="park-sidebar" aria-expanded="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-<aside class="sidebar" id="park-sidebar"><div class="sidebar-heading"><a class="brand" href="#overview">Monitoramento<br>do parque</a></div>
-<nav aria-label="Principal">
-<a href="#overview" data-page="overview" class="nav-link" title="Visitação"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M7 15V9m5 6V5m5 10v-7"/></svg><span class="nav-label">Visitação</span></a>
-<a href="#history" data-page="history" class="nav-link" title="Histórico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v15H5zM8 2v6m8-6v6M8 12h8m-8 4h6"/></svg><span class="nav-label">Histórico</span></a>
-<a href="#equipment" data-page="equipment" class="nav-link" title="Equipamento"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3m6-3v3M9 18v3m6-3v3M3 9h3m-3 6h3m12-6h3m-3 6h3"/></svg><span class="nav-label">Equipamento</span></a>
-</nav><div class="sidebar-art"><img class="sidebar-foliage" src="/folhagem-v2.webp" alt=""></div></aside>
-<div class="workspace">
-<header class="topbar"><div class="site-identification"><span id="park-name">Parque</span><span id="access-name" class="access-name">Acesso principal</span></div><div class="heading-actions"><button class="text-button" id="edit-identification" disabled>Editar identificação</button><button class="text-button" id="sign-out">Sair</button></div></header>
-<main id="content" tabindex="-1">
-<div class="page-heading"><div><h1 id="page-title">Visitação</h1></div><div class="heading-actions" id="report-actions"><button class="button" id="print">Imprimir</button><button class="button primary" id="export">Exportar CSV</button></div></div>
-<p id="error" class="form-message" role="alert" hidden></p>
-<section id="onboarding" class="panel" hidden><h2>Parque não disponível</h2><p>Sua conta precisa de acesso ao parque vinculado a esta ESP. Peça ao responsável para conferir o cadastro.</p></section>
-<div id="report-controls" class="period-bar"><div class="period-controls" role="group" aria-label="Período"><button type="button" data-days="1" class="period-button selected" aria-pressed="true">Hoje</button><button type="button" data-days="7" class="period-button" aria-pressed="false">7 dias</button><button type="button" data-days="30" class="period-button" aria-pressed="false">30 dias</button><button type="button" id="custom-period" class="period-button" aria-expanded="false" aria-controls="date-form">Escolher datas</button></div><span id="period-label"></span></div>
-<form id="date-form" class="date-form" hidden><label>De<input id="date-start" type="date" required></label><label>Até<input id="date-end" type="date" required></label><button class="button primary">Aplicar</button></form>
-<section id="page-overview" class="page">
-<section class="chart-panel" aria-labelledby="chart-title"><div class="chart-heading"><div><h2 id="chart-title">Passagens por hora</h2><p class="small-note">Entradas e saídas no período</p></div><div class="chart-totals" aria-label="Passagens no período"><div class="entry-total"><span class="metric-label"><i class="legend-dot entry"></i>Entradas</span><output id="entries">—</output></div><div class="exit-total"><span class="metric-label"><i class="legend-dot exit"></i>Saídas</span><output id="exits">—</output></div></div></div><div class="plot-surface"><p class="chart-unit">Passagens</p><div id="chart" class="chart" role="group" aria-label="Sem dados coletados no período"></div><div id="chart-detail" class="chart-detail" role="status" hidden></div></div><div class="chart-foot"><p class="chart-note">Registros enviados pela ESP. Horários de Brasília.</p><p class="chart-instruction">Passe o mouse ou toque em um horário para ver os valores.</p></div></section>
-<section class="panel recent-panel"><div class="section-heading"><h2>Últimos registros</h2><a href="#history" class="plain-link">Ver histórico</a></div><div id="recent-history"></div></section>
-</section>
-<section id="page-history" class="page" hidden><section class="panel"><h2>Resumo diário</h2><div id="daily-history"></div></section><section class="panel"><h2>Entradas e saídas registradas</h2><p class="small-note">Últimos 100 registros do período.</p><div id="full-history"></div></section></section>
-<section id="page-equipment" class="page" hidden><section class="panel"><h2>Sincronização da placa</h2><p id="sync-note" class="small-note" role="status">Aguardando sincronização.</p><div id="device-list"></div><p class="small-note">A ESP mantém uma cópia no microSD quando falta internet. Os dados aparecem aqui depois do envio.</p></section>
-<section class="panel"><h2>Configurar envio pelo USB</h2><p>Somente o responsável proprietário pode gerar a chave da placa. Ela permite apenas enviar os registros desta ESP.</p><form id="device-form"><label>Nome da placa<input id="device-name" maxlength="100" value="Freenove — acesso principal" required></label><button class="button">Gerar credencial de envio</button></form><div id="device-secret" hidden><p>Copie estes valores para o configurador USB. A chave só aparece agora; não a compartilhe nem coloque no GitHub.</p><label>ID da placa<input id="device-id" readonly autocomplete="off"></label><button type="button" id="copy-device-id" class="button">Copiar ID</button><label>Chave exclusiva de envio<input id="device-token" type="password" readonly autocomplete="off"></label><div class="heading-actions"><button type="button" id="copy-device-token" class="button primary">Copiar chave</button><button type="button" id="show-device-token" class="text-button" aria-pressed="false">Mostrar chave</button></div><p id="copy-message" class="form-message" role="status"></p><button type="button" id="hide-device-secret" class="button">Já configurei — ocultar chave</button></div></section></section>
-<footer class="page-footer">Contagem aproximada de passagens, não de visitantes únicos. Horários de Brasília.</footer></main></div></div>
-<dialog id="identification-dialog" aria-labelledby="identification-title"><form id="identification-form"><div class="dialog-heading"><h2 id="identification-title">Identificação</h2><button type="button" class="close-button" id="close-identification" aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M7 17 17 7"/></svg></button></div><label>Nome do parque<input id="setting-name" maxlength="80" required autocomplete="off"></label><label>Ponto de contagem<input id="setting-access" maxlength="80" required autocomplete="off"></label><button class="button primary" id="save-identification">Salvar</button><p id="identification-message" role="status" class="form-message"></p></form></dialog>
-</body></html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="Histórico de visitação do parque." />
+    <title>Monitoramento do parque</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/cloud.css" />
+    <link rel="stylesheet" href="/refinements.css" />
+    <script src="/config.js" defer></script>
+    <script src="/cloud.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#content">Ir para o conteúdo</a>
+    <section id="login" class="login-view">
+      <div class="login-content">
+        <h1>Monitoramento do parque</h1>
+        <p>Entre para consultar o histórico de visitação.</p>
+        <form id="login-form">
+          <label>E-mail<input id="email" type="email" autocomplete="username" required /></label
+          ><label
+            >Senha<input
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              required /></label
+          ><button class="button primary" id="login-submit">Entrar</button>
+        </form>
+        <p id="login-message" role="status" class="form-message"></p>
+        <p class="small-note">O acesso é exclusivo dos responsáveis cadastrados.</p>
+      </div>
+      <img src="/folhagem-v2.webp" alt="" class="login-foliage" />
+    </section>
+    <div id="application" hidden>
+      <button
+        class="menu-toggle"
+        id="toggle-menu"
+        aria-label="Minimizar menu"
+        aria-controls="park-sidebar"
+        aria-expanded="true"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+      </button>
+      <aside class="sidebar" id="park-sidebar">
+        <div class="sidebar-heading">
+          <a class="brand" href="#overview">Monitoramento<br />do parque</a>
+        </div>
+        <nav aria-label="Principal">
+          <a href="#overview" data-page="overview" class="nav-link" title="Visitação"
+            ><svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 19h16M7 15V9m5 6V5m5 10v-7" /></svg
+            ><span class="nav-label">Visitação</span></a
+          >
+          <a href="#history" data-page="history" class="nav-link" title="Histórico"
+            ><svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 5h14v15H5zM8 2v6m8-6v6M8 12h8m-8 4h6" /></svg
+            ><span class="nav-label">Histórico</span></a
+          >
+          <a href="#equipment" data-page="equipment" class="nav-link" title="Equipamento"
+            ><svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="6" y="6" width="12" height="12" rx="2" />
+              <path d="M9 3v3m6-3v3M9 18v3m6-3v3M3 9h3m-3 6h3m12-6h3m-3 6h3" /></svg
+            ><span class="nav-label">Equipamento</span></a
+          >
+        </nav>
+        <div class="sidebar-art">
+          <img class="sidebar-foliage" src="/folhagem-v2.webp" alt="" />
+        </div>
+      </aside>
+      <div class="workspace">
+        <header class="topbar">
+          <div class="site-identification">
+            <span id="park-name">Parque</span
+            ><span id="access-name" class="access-name">Acesso principal</span>
+          </div>
+          <div class="heading-actions">
+            <button class="text-button" id="edit-identification" disabled>
+              Editar identificação</button
+            ><button class="text-button" id="sign-out">Sair</button>
+          </div>
+        </header>
+        <main id="content" tabindex="-1">
+          <div class="page-heading">
+            <div><h1 id="page-title">Visitação</h1></div>
+            <div class="heading-actions" id="report-actions">
+              <button class="button" id="print">Imprimir</button
+              ><button class="button primary" id="export">Exportar CSV</button>
+            </div>
+          </div>
+          <p id="error" class="form-message" role="alert" hidden></p>
+          <section id="onboarding" class="panel" hidden>
+            <h2>Parque não disponível</h2>
+            <p>
+              Sua conta precisa de acesso ao parque vinculado a esta ESP. Peça ao responsável para
+              conferir o cadastro.
+            </p>
+          </section>
+          <div id="report-controls" class="period-bar">
+            <div class="period-controls" role="group" aria-label="Período">
+              <button
+                type="button"
+                data-days="1"
+                class="period-button selected"
+                aria-pressed="true"
+              >
+                Hoje</button
+              ><button type="button" data-days="7" class="period-button" aria-pressed="false">
+                7 dias</button
+              ><button type="button" data-days="30" class="period-button" aria-pressed="false">
+                30 dias</button
+              ><button
+                type="button"
+                id="custom-period"
+                class="period-button"
+                aria-expanded="false"
+                aria-controls="date-form"
+              >
+                Escolher datas
+              </button>
+            </div>
+            <span id="period-label"></span>
+          </div>
+          <form id="date-form" class="date-form" hidden>
+            <label>De<input id="date-start" type="date" required /></label
+            ><label>Até<input id="date-end" type="date" required /></label
+            ><button class="button primary">Aplicar</button>
+          </form>
+          <section id="page-overview" class="page">
+            <section class="chart-panel" aria-labelledby="chart-title">
+              <div class="chart-heading">
+                <div>
+                  <h2 id="chart-title">Passagens por hora</h2>
+                  <p class="small-note">Entradas e saídas no período</p>
+                </div>
+                <div class="chart-totals" aria-label="Passagens no período">
+                  <div class="entry-total">
+                    <span class="metric-label"><i class="legend-dot entry"></i>Entradas</span
+                    ><output id="entries">—</output>
+                  </div>
+                  <div class="exit-total">
+                    <span class="metric-label"><i class="legend-dot exit"></i>Saídas</span
+                    ><output id="exits">—</output>
+                  </div>
+                </div>
+              </div>
+              <div class="plot-surface">
+                <p class="chart-unit">Passagens</p>
+                <div
+                  id="chart"
+                  class="chart"
+                  role="group"
+                  aria-label="Sem dados coletados no período"
+                ></div>
+                <div id="chart-detail" class="chart-detail" role="status" hidden></div>
+              </div>
+              <div class="chart-foot">
+                <p class="chart-note">Registros enviados pela ESP. Horários de Brasília.</p>
+                <p class="chart-instruction">
+                  Passe o mouse ou toque em um horário para ver os valores.
+                </p>
+              </div>
+            </section>
+            <section class="panel recent-panel">
+              <div class="section-heading">
+                <h2>Últimos registros</h2>
+                <a href="#history" class="plain-link">Ver histórico</a>
+              </div>
+              <div id="recent-history"></div>
+            </section>
+          </section>
+          <section id="page-history" class="page" hidden>
+            <section class="panel">
+              <h2>Resumo diário</h2>
+              <div id="daily-history"></div>
+            </section>
+            <section class="panel">
+              <h2>Entradas e saídas registradas</h2>
+              <p class="small-note">Últimos 100 registros do período.</p>
+              <div id="full-history"></div>
+            </section>
+          </section>
+          <section id="page-equipment" class="page" hidden>
+            <section class="panel">
+              <h2>Sincronização da placa</h2>
+              <p id="sync-note" class="small-note" role="status">Aguardando sincronização.</p>
+              <div id="device-list"></div>
+              <p class="small-note">
+                A ESP mantém uma cópia no microSD quando falta internet. Os dados aparecem aqui
+                depois do envio.
+              </p>
+            </section>
+            <section
+              class="panel"
+              id="camera-access-section"
+              hidden
+              aria-labelledby="camera-access-title"
+            >
+              <h2 id="camera-access-title">Câmera e Wi-Fi</h2>
+              <p>
+                Conecte o celular ou notebook ao mesmo Wi-Fi da ESP para abrir a câmera e alterar a
+                rede salva.
+              </p>
+              <dl class="camera-access-info">
+                <div>
+                  <dt>Endereço local</dt>
+                  <dd id="camera-address">Aguardando a ESP</dd>
+                </div>
+                <div>
+                  <dt>Informado em</dt>
+                  <dd id="camera-updated">—</dd>
+                </div>
+              </dl>
+              <p id="camera-access-status" role="status">Aguardando o endereço da placa.</p>
+              <div class="heading-actions camera-access-actions">
+                <button type="button" id="open-camera-link" class="button primary" disabled>
+                  Abrir câmera e ajustes</button
+                ><button type="button" id="copy-camera-link" class="button" disabled>
+                  Copiar link para o celular
+                </button>
+              </div>
+              <p id="camera-access-message" class="form-message" role="status"></p>
+              <p class="small-note">
+                O link completo inclui a chave dos ajustes. Compartilhe somente com responsáveis. Ao
+                trocar de rede, o endereço é atualizado depois que a ESP volta à internet. O vídeo
+                não passa pela nuvem.
+              </p>
+            </section>
+            <section class="panel">
+              <h2>Configurar envio pelo USB</h2>
+              <p>
+                Somente o responsável proprietário pode gerar a chave da placa. Ela permite apenas
+                enviar os registros desta ESP.
+              </p>
+              <form id="device-form">
+                <label
+                  >Nome da placa<input
+                    id="device-name"
+                    maxlength="100"
+                    value="Freenove — acesso principal"
+                    required /></label
+                ><button class="button">Gerar credencial de envio</button>
+              </form>
+              <div id="device-secret" hidden>
+                <p>
+                  Copie estes valores para o configurador USB. A chave só aparece agora; não a
+                  compartilhe nem coloque no GitHub.
+                </p>
+                <label>ID da placa<input id="device-id" readonly autocomplete="off" /></label
+                ><button type="button" id="copy-device-id" class="button">Copiar ID</button
+                ><label
+                  >Chave exclusiva de envio<input
+                    id="device-token"
+                    type="password"
+                    readonly
+                    autocomplete="off"
+                /></label>
+                <div class="heading-actions">
+                  <button type="button" id="copy-device-token" class="button primary">
+                    Copiar chave</button
+                  ><button
+                    type="button"
+                    id="show-device-token"
+                    class="text-button"
+                    aria-pressed="false"
+                  >
+                    Mostrar chave
+                  </button>
+                </div>
+                <p id="copy-message" class="form-message" role="status"></p>
+                <button type="button" id="hide-device-secret" class="button">
+                  Já configurei — ocultar chave
+                </button>
+              </div>
+            </section>
+          </section>
+          <footer class="page-footer">
+            Contagem aproximada de passagens, não de visitantes únicos. Horários de Brasília.
+          </footer>
+        </main>
+      </div>
+    </div>
+    <dialog id="identification-dialog" aria-labelledby="identification-title">
+      <form id="identification-form">
+        <div class="dialog-heading">
+          <h2 id="identification-title">Identificação</h2>
+          <button type="button" class="close-button" id="close-identification" aria-label="Fechar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M7 17 17 7" /></svg>
+          </button>
+        </div>
+        <label
+          >Nome do parque<input
+            id="setting-name"
+            maxlength="80"
+            required
+            autocomplete="off" /></label
+        ><label
+          >Ponto de contagem<input
+            id="setting-access"
+            maxlength="80"
+            required
+            autocomplete="off" /></label
+        ><button class="button primary" id="save-identification">Salvar</button>
+        <p id="identification-message" role="status" class="form-message"></p>
+      </form>
+    </dialog>
+  </body>
+</html>

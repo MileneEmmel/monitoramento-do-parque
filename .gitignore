@@ -24,4 +24,13 @@
 /cloud/site-source.zip
 /cloud/.openai/local/
 /cloud-proof.png
+**/.vercel/
+**/.openai/
+**/.impeccable/
+*.zip
+*.tar.gz
+*.sqlite3
+*.sqlite3-*
+*.backup
+node_modules/
 

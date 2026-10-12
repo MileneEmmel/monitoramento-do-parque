@@ -34,14 +34,21 @@ def main():
             raise SystemExit('A senha deve ter entre 8 e 63 bytes.')
         command = ('@WIFI ' + json.dumps({'ssid': ssid, 'password': password}, ensure_ascii=False) + '\n').encode('utf-8')
         del password
+    device = serial.Serial()
+    device.port = args.port
+    device.baudrate = 115200
+    device.timeout = 0.5
+    device.write_timeout = 3
+    device.dtr = False
+    device.rts = False
     try:
-        device = serial.Serial(args.port, 115200, timeout=0.5)
+        device.open()
     except serial.SerialException as error:
         raise SystemExit(f'Nao foi possivel abrir {args.port}. Feche qualquer monitor/visualizador USB e tente novamente.\n{error}')
     with device:
-        # Opening the converter can reset the chip. Let firmware initialize before sending.
-        time.sleep(3)
+        # Preserve camera/AI operation while consulting or configuring Wi-Fi.
         device.reset_input_buffer()
+        device.write(b'\n')
         if command:
             device.write(command)
             device.flush()
@@ -70,7 +77,7 @@ def main():
                     url = status['url']
                     if not url.startswith('http://') or '/#' not in url:
                         raise SystemExit('A placa retornou um endereco inesperado.')
-                    print('ESP online em '+url.split('/#',1)[0]+'/. O painel e o historico funcionam sem notebook.', flush=True)
+                    print('ESP online em '+url.split('/#',1)[0]+'/. Abrindo camera e ajustes locais; dashboard e historico ficam na nuvem.', flush=True)
                     if not args.no_browser:
                         webbrowser.open(url)
                     return

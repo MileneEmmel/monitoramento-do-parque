@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Câmera | Monitoramento do parque</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#content">Ir para o conteúdo</a>
+    <button
+      class="menu-toggle"
+      id="toggle-menu"
+      aria-label="Minimizar menu"
+      aria-controls="park-sidebar"
+      aria-expanded="true"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+    </button>
+    <aside class="sidebar" id="park-sidebar">
+      <div class="sidebar-heading">
+        <a class="brand" href="#camera">Monitoramento<br />do parque</a>
+      </div>
+      <nav aria-label="Principal">
+        <a
+          href="#camera"
+          class="nav-link active"
+          aria-current="page"
+          aria-label="Câmera e ajustes"
+          title="Câmera e ajustes"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 8h4l2-3h6l2 3h4v12H3Z" />
+            <circle cx="12" cy="13" r="3" /></svg
+          ><span class="nav-label">Câmera e ajustes</span></a
+        >
+      </nav>
+      <div class="sidebar-art" aria-hidden="true">
+        <img class="sidebar-foliage" src="/folhagem-v2.webp" alt="" />
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="site-identification">
+          <span id="park-name">Parque</span
+          ><span class="access-name" id="access-name">Acesso principal</span>
+        </div>
+        <a
+          class="text-button"
+          href="https://monitoramento-parque.vercel.app/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Abrir dashboard</a
+        >
+      </header>
+      <main id="content" tabindex="-1">
+        <div class="page-heading"><h1>Câmera e ajustes</h1></div>
+        <p id="request-error" class="error-text" role="alert" hidden></p>
+        <div class="camera-layout">
+          <section class="panel camera-panel">
+            <div class="section-heading">
+              <h2>Ao vivo</h2>
+              <button class="button small" id="pause-camera">Pausar imagem</button>
+            </div>
+            <div class="camera-surface">
+              <canvas
+                id="camera"
+                width="320"
+                height="240"
+                aria-label="Câmera ao vivo com linhas de contagem"
+              ></canvas>
+              <p id="camera-placeholder">Aguardando imagem da ESP.</p>
+            </div>
+            <div class="camera-toolbar">
+              <span id="people-now">Pessoas no quadro: —</span
+              ><label><input type="checkbox" id="show-boxes" checked /> Mostrar detecções</label>
+            </div>
+            <p id="camera-status" class="small-note" role="status">Aguardando imagem.</p>
+            <p class="small-note">Pausar a imagem não interrompe a contagem.</p>
+          </section>
+          <section class="calibration-panel">
+            <h2>Linhas de contagem</h2>
+            <form id="calibration-form">
+              <label
+                >Orientação<select id="axis">
+                  <option value="x">Verticais</option>
+                  <option value="y">Horizontais</option>
+                </select></label
+              >
+              <div class="line-inputs">
+                <label
+                  >Linha A (%)<input type="number" id="line-a" min="5" max="90" required /></label
+                ><label
+                  >Linha B (%)<input type="number" id="line-b" min="10" max="95" required
+                /></label>
+              </div>
+              <label class="checkbox-label"
+                ><input type="checkbox" id="reverse" /> Inverter entrada e saída</label
+              >
+              <p id="direction" class="small-note"></p>
+              <button class="button primary" id="apply-lines" disabled>Salvar linhas</button>
+              <p id="calibration-status" class="form-message" role="status"></p>
+            </form>
+            <p class="small-note">Mantém os totais e reinicia os trajetos em andamento.</p>
+          </section>
+        </div>
+        <details class="network-help">
+          <summary>
+            <span>Wi-Fi e acesso local</span
+            ><svg class="disclosure-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path class="disclosure-vertical" d="M12 5v14" />
+            </svg>
+          </summary>
+          <p id="wifi-current"></p>
+          <dl class="equipment-list">
+            <div>
+              <dt>Rede</dt>
+              <dd id="wifi-network">—</dd>
+            </div>
+            <div>
+              <dt>Endereço da ESP</dt>
+              <dd id="wifi-address">—</dd>
+            </div>
+            <div>
+              <dt>Sinal</dt>
+              <dd id="wifi-signal">—</dd>
+            </div>
+          </dl>
+          <p>
+            Para ver a câmera no celular, conecte-o ao mesmo Wi-Fi da ESP e abra o link completo da
+            placa. A câmera não é transmitida pela internet.
+          </p>
+          <details class="network-help">
+            <summary>
+              <span>Alterar rede salva</span
+              ><svg class="disclosure-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h14" />
+                <path class="disclosure-vertical" d="M12 5v14" />
+              </svg>
+            </summary>
+            <p>
+              Use uma rede de 2,4 GHz. A troca interrompe a conexão atual e pode mudar o endereço da
+              placa. Se ficar inacessível, configure pelo cabo USB.
+            </p>
+            <form id="wifi-form">
+              <label
+                >Nome da rede (SSID)<input
+                  id="wifi-ssid"
+                  required
+                  maxlength="32"
+                  autocomplete="off" /></label
+              ><label
+                >Senha do Wi-Fi<input
+                  id="wifi-password"
+                  type="password"
+                  required
+                  minlength="8"
+                  maxlength="63"
+                  autocomplete="off" /></label
+              ><button class="button primary" id="save-wifi">Salvar e trocar rede</button>
+              <p id="wifi-message" class="form-message" role="status"></p>
+            </form>
+          </details>
+        </details>
+        <details class="network-help">
+          <summary>
+            <span>Gravação e envio</span
+            ><svg class="disclosure-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path class="disclosure-vertical" d="M12 5v14" />
+            </svg>
+          </summary>
+          <p id="storage-status" role="status"></p>
+          <p id="cloud-status" role="status"></p>
+          <p>
+            Histórico e relatórios estão no dashboard online. O microSD mantém os registros para
+            reenvio quando a internet voltar.
+          </p>
+        </details>
+        <details class="panel diagnostics">
+          <summary>
+            <span>Diagnóstico dos trajetos</span
+            ><svg class="disclosure-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path class="disclosure-vertical" d="M12 5v14" />
+            </svg>
+          </summary>
+          <p id="tracks" class="small-note">Aguardando imagem.</p>
+        </details>
+        <footer class="page-footer">
+          Contagem aproximada de passagens. Imagens somente ao vivo, sem gravação.
+        </footer>
+      </main>
+    </div>
+  </body>
+</html>

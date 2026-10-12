@@ -10,9 +10,6 @@ git -C $checkout checkout --detach $revision
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao selecionar a revisão fixada.' }
 git -C $checkout submodule update --init --recursive
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao carregar submódulos.' }
-$destination = Join-Path $checkout 'examples/object_detect'
-Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'firmware/object_detect') | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force
-}
+& (Join-Path $PSScriptRoot 'atualizar-firmware.ps1') -Checkout $checkout
 Write-Host 'Base preparada. Abra um terminal ESP-IDF e siga o README para compilar.'
 

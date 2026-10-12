@@ -28,7 +28,7 @@ class WiFiSetupTests(unittest.TestCase):
              patch('builtins.print'):
             configure_wifi.main()
         password.assert_not_called()
-        device.write.assert_called_once_with(b'@WIFI_STATUS\n')
+        self.assertEqual([c.args[0] for c in device.write.call_args_list], [b'\n', b'@WIFI_STATUS\n'])
         device.__exit__.assert_called_once()
 
     def test_password_only_sent_to_usb_not_printed(self):
@@ -41,10 +41,26 @@ class WiFiSetupTests(unittest.TestCase):
              patch.object(configure_wifi.time, 'sleep'), \
              patch('builtins.print') as output:
             configure_wifi.main()
-        command = device.write.call_args_list[0].args[0]
+        command = next(c.args[0] for c in device.write.call_args_list if c.args[0].startswith(b'@WIFI '))
         config = json.loads(command[len(b'@WIFI '):])
         self.assertEqual(config['password'], 'fake-test-password')
         self.assertNotIn('fake-test-password', str(output.call_args_list))
+
+    def test_unrecognized_board_is_not_opened(self):
+        with patch('sys.argv', ['configure_wifi.py', '--status']), \
+             patch.object(configure_wifi.list_ports, 'comports', return_value=[]), \
+             patch.object(configure_wifi.serial, 'Serial') as serial_port, \
+             self.assertRaises(SystemExit):
+            configure_wifi.main()
+        serial_port.assert_not_called()
+
+    def test_utf8_ssid_limit_is_in_bytes(self):
+        with patch('sys.argv', ['configure_wifi.py']), \
+             patch('builtins.input', return_value='á' * 17), \
+             patch.object(configure_wifi.serial, 'Serial') as serial_port, \
+             patch('builtins.print'), self.assertRaises(SystemExit):
+            configure_wifi.main()
+        serial_port.assert_not_called()
 
     def test_non_interactive_terminal_does_not_echo_password(self):
         with patch('sys.argv', ['configure_wifi.py']), \

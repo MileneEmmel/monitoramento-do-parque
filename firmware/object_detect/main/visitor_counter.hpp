@@ -16,5 +16,4 @@ bool visitor_counter_start();
 CountSnapshot visitor_counter_update(const who::detect::WhoDetect::result_t &result);
 CountSnapshot visitor_counter_snapshot();
 bool visitor_counter_configure(const park::Config &config);
-bool visitor_counter_reset_totals();
 std::string visitor_counter_json(const CountSnapshot &snapshot);

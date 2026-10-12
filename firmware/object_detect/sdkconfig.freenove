@@ -6,6 +6,11 @@ CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_MEMTEST=y
+# TLS buffers must use PSRAM: camera/AI reserve the internal DMA-capable heap.
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+# Keep AES acceleration/encryption, but avoid a fatal late ISR allocation when
+# camera DMA, Wi-Fi and AI are active. The IDF driver polls completion instead.
+# CONFIG_MBEDTLS_AES_USE_INTERRUPT is not set
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
 CONFIG_PEDESTRIAN_DETECT_MODEL_IN_FLASH_RODATA=y
