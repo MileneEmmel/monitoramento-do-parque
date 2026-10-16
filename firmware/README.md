@@ -47,7 +47,13 @@ Não use `erase-flash` numa atualização normal. A compilação gera binários 
 | Câmera sincronização | VSYNC 6, HREF 7, PCLK 13, XCLK 15 |
 | microSD, 1 bit | CMD 38, CLK 39, D0 40 |
 
-A GC0308 usa XCLK de 20 MHz. A configuração inclui PSRAM octal e flash de 8 MB. Não reutilize pinos ocupados para o PIR sem verificar o esquema da placa. O PIR ainda não possui driver ou lógica de despertar neste firmware.
+A GC0308 usa XCLK de 20 MHz. A configuração inclui PSRAM octal e flash de 8 MB. O PIR HC-SR501 usa GPIO1 como entrada de diagnóstico, VCC em 5V e GND comum. Não reutilize pinos da câmera ou do cartão.
+
+## Diagnóstico do PIR
+
+Após gravar o firmware atualizado, execute `python firmware/object_detect/check_pir.py --port COM5 --seconds 60` na raiz. O script consulta apenas `@PIR_STATUS`, sem reiniciar a placa nem registrar outras mensagens USB. Aguarde a estabilização do sensor antes de comparar movimento e repouso. Um sinal constante é inconclusivo, e transições durante a estabilização não comprovam detecção correta.
+
+O sensor ainda não controla a IA, a contagem ou deep sleep. O diagnóstico configura GPIO1 como entrada com pull-down; não identifica sozinho um sensor ausente ou um fio solto.
 
 ## Configuradores USB
 

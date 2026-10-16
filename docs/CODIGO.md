@@ -19,11 +19,14 @@ Para trabalhar no site, use `cloud/public/` para relatórios online e `dashboard
 | `wifi_preview.cpp` | Wi-Fi, HTTP local, autenticação, ajustes e comandos USB. |
 | `park_history.cpp` | Diário microSD, checksums, relatórios, limpeza e cursores. |
 | `park_cloud.cpp` | HTTPS com certificado verificado, lotes, retentativas e status. |
+| `pir_sensor.cpp` | Diagnóstico sob demanda do nível digital do PIR no GPIO1, sem alterar contagem ou sono. |
 | `Kconfig.projbuild` | Opções da aplicação. |
 | `idf_component.yml` | Dependências do componente. |
 | `CMakeLists.txt` | Compilação e inclusão dos recursos web no firmware. |
 
 Os `.hpp` expõem a interface de cada módulo. `sdkconfig.freenove` configura a placa; o lockfile fixa dependências do exemplo. Trechos de suporte a outros modelos/placas pertencem à base ESP-WHO e são selecionados por configuração na compilação.
+
+`firmware/object_detect/check_pir.py` consulta o diagnóstico USB e mostra somente o sinal do PIR. `test_check_pir.py` verifica identificação da placa, comandos permitidos e descarte de mensagens alheias ao teste. A validação física exige correlacionar mudanças do sinal com movimento e repouso.
 
 ### Detecção e contagem
 

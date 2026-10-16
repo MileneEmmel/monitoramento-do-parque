@@ -40,7 +40,7 @@ O dashboard online contém gráficos, histórico, exportação CSV e identifica�
 
 A base ESP-WHO está fixada na revisão `1abda05e1c0782237fcb9e8d33a2fa7e105f06b2`. O firmware é uma adaptação do exemplo `object_detect`, aplicada sobre essa base.
 
-PIR, deep sleep e bateria ainda não estão implementados. Precisão em campo e autonomia energética precisam ser medidas. A falha intermitente observada no microSD requer teste prolongado; não é tratada como definitivamente resolvida.
+O PIR possui uma leitura de diagnóstico no GPIO1; ainda não controla a detecção ou o consumo. Deep sleep e operação por bateria não estão implementados. Precisão em campo e autonomia energética precisam ser medidas. A falha intermitente observada no microSD requer teste prolongado; não é tratada como definitivamente resolvida.
 
 ## Organização
 

@@ -9,7 +9,7 @@ set(detect_component ${DETECT_MODEL} espressif__${DETECT_MODEL})
 idf_component_register(SRC_DIRS ${src_dirs} INCLUDE_DIRS ${include_dirs} REQUIRES ${requires}
                        PRIV_REQUIRES esp_psram esp_timer espressif__esp_new_jpeg mbedtls
                                      esp_wifi esp_netif esp_event esp_http_server nvs_flash json esp_driver_uart
-                                     fatfs sdmmc esp_driver_sdmmc lwip esp_http_client esp-tls)
+                                     fatfs sdmmc esp_driver_sdmmc lwip esp_http_client esp-tls esp_driver_gpio)
 idf_component_optional_requires(PUBLIC ${detect_component})
 # Override when ESP-WHO is checked out outside this repository.
 get_filename_component(PARK_DASHBOARD_DEFAULT "${CMAKE_CURRENT_LIST_DIR}/../../../../dashboard" ABSOLUTE)

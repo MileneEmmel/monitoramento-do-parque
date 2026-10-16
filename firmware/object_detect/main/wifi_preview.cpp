@@ -12,6 +12,7 @@
 #include "nvs_flash.h"
 #include "park_history.hpp"
 #include "park_cloud.hpp"
+#include "pir_sensor.hpp"
 #include "visitor_counter.hpp"
 #include <cstdio>
 #include <atomic>
@@ -490,6 +491,10 @@ void provision_task(void *)
             if(cJSON_IsString(secret)) memset(secret->valuestring,0,strlen(secret->valuestring));
             cJSON_Delete(json);
             printf("\n@CLOUD_CONFIG {\"ok\":%s}\n",ok?"true":"false");fflush(stdout);
+        } else if (!overflow && strcmp(line,"@PIR_STATUS")==0) {
+            auto json=pir_sensor_status();auto output=cJSON_PrintUnformatted(json);
+            if(output) {printf("\n@PIR_STATUS %s\n",output);cJSON_free(output);}
+            cJSON_Delete(json);fflush(stdout);
         } else if (!overflow && strcmp(line,"@CLOUD_STATUS")==0) {
             auto json=park_cloud_status();auto output=cJSON_PrintUnformatted(json);
             if(output) {printf("\n@CLOUD_STATUS %s\n",output);cJSON_free(output);}
