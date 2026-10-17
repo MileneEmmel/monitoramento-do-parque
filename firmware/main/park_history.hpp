@@ -2,9 +2,13 @@
 #include "cJSON.h"
 #include <ctime>
 #include <string>
+#include <cstdint>
 bool park_history_start();
 void park_history_capture();
 bool park_history_ready();
+bool park_history_initialized();
+bool park_history_healthy();
+uint32_t park_history_revision();
 // Returns with the journal mutex held on success; release on an aborted sleep.
 bool park_history_sleep_lock();
 void park_history_sleep_unlock();
@@ -22,6 +26,6 @@ struct ParkCloudBatch {
     bool ok = false;
     const char *error = "sd_not_ready";
 };
-ParkCloudBatch park_history_cloud_batch();
+ParkCloudBatch park_history_cloud_batch(unsigned timeout_ms = 200);
 bool park_history_cloud_ack(const ParkCloudBatch &batch);
 void park_history_cloud_protect();

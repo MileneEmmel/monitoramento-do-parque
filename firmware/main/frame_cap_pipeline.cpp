@@ -8,6 +8,10 @@
 #include "freertos/task.h"
 
 using namespace who::frame_cap;
+namespace { VideoCapture *application_capture = nullptr; }
+bool restart_dvp_capture() {
+    return application_capture && application_capture->stop()==ESP_OK && application_capture->start()==ESP_OK;
+}
 
 #if defined(CONFIG_HUMAN_FACE_DETECT_MODEL_LOCATION)
 // num of frames the model take to get result
@@ -50,6 +54,14 @@ using namespace who::frame_cap;
 #if CONFIG_IDF_TARGET_ESP32S3
 #if CONFIG_APP_BOARD_FREENOVE_S3
 // The GC0308 fitted to this board requires 20 MHz, unlike the EYE's 16 MHz.
+static esp_cam_sensor_xclk_handle_t application_clock = nullptr;
+static void release_failed_camera() {
+    esp_video_deinit();
+    if(application_clock) {
+        esp_cam_sensor_xclk_stop(application_clock);
+        esp_cam_sensor_xclk_free(application_clock); application_clock=nullptr;
+    }
+}
 static esp_err_t freenove_camera_start()
 {
     esp_cam_sensor_xclk_handle_t clock = nullptr;
@@ -66,6 +78,7 @@ static esp_err_t freenove_camera_start()
         esp_cam_sensor_xclk_free(clock);
         return status;
     }
+    application_clock=clock;
     // Let the external sensor settle after its clock starts. A CPU reset does
     // not power-cycle this board's camera.
     vTaskDelay(pdMS_TO_TICKS(20));
@@ -90,7 +103,9 @@ static esp_err_t freenove_camera_start()
     dvp.xclk_freq = 20000000;
     esp_video_init_config_t video = {};
     video.dvp = &dvp;
-    return esp_video_init(&video);
+    status=esp_video_init(&video);
+    if(status!=ESP_OK) release_failed_camera();
+    return status;
 }
 #endif
 WhoFrameCap *get_dvp_frame_cap_pipeline(bool lcd)
@@ -133,10 +148,14 @@ WhoFrameCap *get_dvp_frame_cap_pipeline(bool lcd)
         ESP_LOGE("FREENOVE", "Camera could not start: %s. Check sensor model and ribbon connection.",
                  esp_err_to_name(status));
         delete cap;
+#if CONFIG_APP_BOARD_FREENOVE_S3
+        release_failed_camera();
+#endif
         return nullptr;
     }
 
     auto frame_cap = new WhoFrameCap();
+    application_capture=cap;
     frame_cap->add_node<WhoFetchNode>("FrameCapFetch", cap);
     return frame_cap;
 }

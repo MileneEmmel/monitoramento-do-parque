@@ -1,4 +1,5 @@
 #include "visitor_counter.hpp"
+#include "app_settings.hpp"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -14,6 +15,7 @@ SemaphoreHandle_t save_mutex = nullptr;
 bool ready = false, storage_ok = false;
 bool frozen = false;
 uint32_t revision = 0, saved_revision = 0;
+uint64_t loaded_entries = 0, loaded_exits = 0;
 // Single versioned blob keeps totals and calibration in the same NVS transaction.
 struct Saved {
     uint32_t version;
@@ -47,7 +49,7 @@ CountSnapshot snapshot_locked() {
 }
 void persistence_task(void *) {
     while (true) {
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        vTaskDelay(pdMS_TO_TICKS(park::settings::checkpoint_ms));
         // Always take save -> counter. Prevent an older background snapshot
         // from overwriting a reset that was already acknowledged to the browser.
         xSemaphoreTake(save_mutex,portMAX_DELAY);
@@ -91,6 +93,7 @@ bool visitor_counter_start() {
     } else if (error!=ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGE("COUNTER","Cannot load counts: %s; preserved",esp_err_to_name(error)); return false;
     }
+    loaded_entries=counter.entries; loaded_exits=counter.exits;
     storage_ok=true;
     if (xTaskCreate(persistence_task,"CountSave",3072,nullptr,1,nullptr)!=pdPASS) { storage_ok=false; return false; }
     ready=true;
@@ -100,6 +103,17 @@ bool visitor_counter_start() {
 CountSnapshot visitor_counter_snapshot() {
     if (!mutex) return CountSnapshot{};
     xSemaphoreTake(mutex,portMAX_DELAY); auto s=snapshot_locked(); xSemaphoreGive(mutex); return s;
+}
+void visitor_counter_restore(uint64_t entries, uint64_t exits) {
+    if (!mutex) return;
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    const auto missing_e = entries > loaded_entries ? entries - loaded_entries : 0;
+    const auto missing_x = exits > loaded_exits ? exits - loaded_exits : 0;
+    // Applied once, after mount. Do not replace totals containing new detections.
+    counter.entries += missing_e; counter.exits += missing_x;
+    if (missing_e || missing_x) ++revision;
+    loaded_entries = counter.entries; loaded_exits = counter.exits;
+    xSemaphoreGive(mutex);
 }
 CountSnapshot visitor_counter_update(const who::detect::WhoDetect::result_t &result) {
     if (!mutex) return CountSnapshot{};

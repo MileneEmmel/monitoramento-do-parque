@@ -26,6 +26,7 @@ O projeto ESP-IDF começa no `CMakeLists.txt` da raiz. Não depende da pasta ext
 - `wifi_preview.cpp` e `camera_preview.cpp`: rede e acesso local à câmera.
 - `pir_sensor.cpp`, `park_power.cpp` e `power_policy.hpp`: presença, condições de repouso e despertar.
 - `power_monitor.cpp`: telemetria do PIR e da IA, eventos recentes e confirmação de ciclos de sono pela memória RTC e pelo motivo real do reinício.
+- `app_settings.hpp` e `cloud_policy.hpp`: tempos da aplicação e agendamento dos envios, com verificações internas de coleta e repetição.
 - `counting_core_checks.cpp`: verificações internas executadas na inicialização, preservadas do firmware. Não é uma suíte externa de desenvolvimento.
 
 As adaptações desta aplicação estão em `firmware/main/`. Os componentes em `firmware/components/` vieram do [ESP-WHO](https://github.com/espressif/esp-who), revisão `1abda05e1c0782237fcb9e8d33a2fa7e105f06b2`, e mantêm o código original e a licença em `firmware/LICENSE-ESP-WHO`.
@@ -61,9 +62,9 @@ A gravação pode ser feita pela extensão ESP-IDF ou com `idf.py -p COM5 flash`
 
 No modo contínuo, a placa inicializa a câmera e a detecção após ligar, independentemente de o navegador estar aberto. No modo com PIR, a captura aguarda presença ou solicitação da prévia local. O PIR sinaliza movimento; a contagem de pessoas é feita pela câmera e pelo cruzamento das linhas, não pelo número de pulsos do sensor.
 
-Na versão experimental de baixo consumo, a placa respeita a estabilização inicial do sensor, a janela mínima de funcionamento e o período sem atividade antes de preparar o deep sleep. Antes de dormir, precisa concluir a gravação do diário. O despertar pode ocorrer pelo PIR ou pelo temporizador de sincronização, configurado para cinco minutos. A visualização da imagem não deve impedir o repouso. As regras e os tempos exatos estão em `park_power.cpp`, `power_policy.hpp` e `Kconfig.projbuild`.
+Na versão experimental de baixo consumo, a placa respeita a estabilização inicial e o período sem atividade antes de preparar o deep sleep. Não há mínimo de um minuto após despertar pelo PIR. O despertar ocorre pelo PIR ou após seis horas de sono. A visualização não impede o repouso. Os tempos estão centralizados em `app_settings.hpp`; inatividade e temporizador também são configuráveis em `Kconfig.projbuild`.
 
-O histórico é gravado no microSD em `park-monitor-v1`; os marcadores de sincronização ficam em `park-cloud-v1`. Se a internet cair, os registros persistidos podem ser enviados quando a conexão voltar. Uma falha no cartão não deve ser interpretada como histórico salvo: o sistema informa o erro e pode cancelar a entrada em sono para não perder registros.
+O histórico é gravado no microSD em `park-monitor-v1`; os marcadores de sincronização ficam em `park-cloud-v1`. Se a internet cair, os registros não confirmados permanecem para reenvio. Falha no cartão é informada, mas não impede o sono. Sem cartão e sem internet, os totais internos não substituem o histórico detalhado por horário.
 
 ## Painel e nuvem
 
@@ -83,16 +84,37 @@ O modo **Contínuo para ajustes** impede o sono. O modo **Sensor e deep sleep** 
 
 | Condição | Comportamento configurado |
 | --- | --- |
-| Ligamento ou reinício comum | Pelo menos 120 segundos desde o boot; também exige observar o PIR em nível baixo e alto. |
-| Despertar pelo PIR | Pelo menos 60 segundos desde o boot. |
-| Despertar pelo temporizador | Piso de 20 segundos desde o boot; a janela de 30 segundos sem atividade também se aplica. |
+| Ligamento ou reinício comum | Estabilização de 120 segundos desde o boot, sem exigir uma primeira ativação do PIR. A contagem pode começar durante esse período. |
+| Despertar pelo PIR | Inicia câmera/IA sem aguardar rede ou montagem do cartão; não exige mínimo de 60 segundos. |
+| Despertar pelo temporizador | Sincroniza sem iniciar a câmera e volta a dormir. Movimento transfere para operação normal. Não há piso de 20 segundos. |
 | Sem atividade | Aguarda 30 segundos após o último PIR ativo ou pessoa detectada pela IA. |
-| Preparação do sono | Solicita sincronização em uma janela de até 8 segundos; nova atividade cancela o preparo. |
-| Durante o sono | Desperta com GPIO1 alto ou após 300 segundos, o que ocorrer primeiro. |
+| Coleta para envio | Primeiro registro pendente inicia uma janela de 10 segundos; novos registros não adiam a janela. |
+| Lotes | Até 8 registros, com 2 segundos entre lotes confirmados. O limite conserva memória e tamanho da mensagem na ESP; o banco aceita até 32. |
+| Tentativa de comunicação | Prazo monotônico de até 10 segundos, incluindo resolução de endereço e comunicação HTTPS. |
+| Falha temporária no fechamento | Uma repetição, com pausa de 2 segundos; erros de autorização/dados não são repetidos cegamente. |
+| Falha durante operação normal | Aguarda 60 segundos para tentar novamente enquanto houver atividade. |
+| Preparação do sono | Tenta escoar a fila, com até 120 segundos de orçamento total de rede; termina antes se concluir ou falhar de modo persistente. Nova atividade cancela o preparo. |
+| Durante o sono | Desperta com GPIO1 alto ou após 21600 segundos (6 horas), o que ocorrer primeiro. |
+| Câmera sem quadros | Após 5 segundos sem quadros, uma recuperação cooperativa com prazo de 10 segundos por boot; falha informada não veta o sono. |
+| Gravação | microSD verifica mudanças a cada 2 segundos; resumo interno verifica alterações a cada 10 segundos; fechamento força persistência. |
 
 Esses tempos não são somados obrigatoriamente. Para dormir, todas as condições precisam estar atendidas. PIR alto renova a atividade enquanto permanecer alto; a ausência de pessoas na IA não anula o sinal do PIR. A prévia e as consultas do monitor não renovam o prazo de inatividade.
 
-Na preparação, a contagem permanece ativa durante a janela de rede. Antes de dormir, o sistema pausa o envio, congela a contagem apenas para a gravação final, confirma os totais e o diário microSD, desliga o Wi-Fi e configura as fontes de despertar. Falhas de gravação, relógio inválido, IA iniciada sem quadros recentes ou nova atividade podem cancelar o sono. A internet não precisa confirmar todos os registros antes de cada sono: o diário persistido permite retomar os pendentes.
+Na preparação, a contagem permanece ativa durante o envio. O fechamento pausa o envio e congela a contagem apenas para o checkpoint final. Uma nova passagem cancela o preparo. Dados novos durante o fechamento recebem nova oportunidade sob o mesmo prazo, sem reiniciar o orçamento. Se a rede falhar ou o teto terminar, a fila não confirmada permanece no cartão e não impede o sono. O checkpoint interno continua sendo uma proteção: falhar ao salvar os totais pode cancelar o fechamento.
+
+O prazo de rede não inclui a estabilização inicial nem o intervalo de inatividade. Os dois valores de 120 segundos têm funções diferentes: um é estabilização ao ligar; o outro é um teto de comunicação durante o fechamento. Esperas internas de segurança para concluir uma operação de armazenamento não devem ser confundidas com esse teto de rede.
+
+Falhas de microSD, relógio inválido e câmera não mantêm a placa acordada indefinidamente. Há uma montagem do cartão por boot, sem formatação automática; se não montar, a próxima tentativa ocorre no próximo despertar. A recuperação da câmera só reinicia a captura depois de pausar cooperativamente seus consumidores, sem matar tarefas segurando recursos. Caso não consiga recuperar, a contagem fica indisponível e o aviso permanece no monitor.
+
+### Persistência e sincronização
+
+Os totais e a calibração permanecem na NVS, atualizando o mesmo resumo, sem acumular um histórico interno. Após montar o cartão, a aplicação verifica as caudas dos arquivos reconhecidos e recupera totais mais recentes que o checkpoint interno, preservando passagens já detectadas neste boot. O histórico por horário continua no cartão; um resumo interno mais recente não reconstrói horários de registros que nunca chegaram ao microSD.
+
+O cursor do cartão avança somente após a nuvem confirmar a quantidade exata recebida. Reenvios mantêm os identificadores e o banco não duplica passagens. Falha ao gravar o cursor mantém os registros para reenvio, mesmo que já tenham sido recebidos. Amostras auxiliares sem movimento não iniciam, sozinhas, requisições periódicas.
+
+Estado do cartão, validade do relógio, endereço privado da câmera e operação são enviados no anúncio inicial e quando mudam. O controle de mudanças avança somente após confirmação. O banco preserva campos ausentes nos envios parciais. O anúncio de preparo indica intenção de dormir e previsão de despertar, nunca comprova o estado atual. A nuvem não trata dois minutos de silêncio como defeito e permite ao proprietário abrir o último link conhecido, avisando que ele exige a mesma rede e uma ESP acordada.
+
+Antes de usar o novo firmware, aplique `supabase/migrations/202610170001_sleep_sync.sql` ao projeto existente e publique `cloud/public/`. A migração mantém histórico, credenciais e permissões anteriores. Não contém chaves administrativas ou privadas.
 
 O monitor só chama um ciclo de **confirmado** quando o próximo boot informa reinício por deep sleep e encontra o marcador anterior na memória RTC. Perda de conexão, sozinha, nunca comprova sono. Os ciclos da sessão são zerados em um reinício comum ou desligamento. Isso confirma o estado do chip, não mede a corrente da placa completa, câmera, PIR ou regulador.
 
@@ -105,14 +127,14 @@ O monitor só chama um ciclo de **confirmado** quando o próximo boot informa re
 5. Compare passagens reais e registros, incluindo a primeira pessoa após o repouso, as duas direções e pessoas lado a lado.
 6. Baixe o registro antes de fechar a aba. A ESP mantém 32 eventos recentes por boot e a tela mantém 200; esse registro de teste não vai para o histórico de visitação.
 
-### Decisões pendentes antes da instalação definitiva
+### Validações antes da instalação definitiva
 
-- Definir o intervalo sem atividade e a periodicidade de sincronização a partir de testes, em vez de reduzir os tempos apenas para economizar.
+- Confirmar no parque se os 30 segundos de inatividade e seis horas entre despertares sem movimento atendem ao uso. Se falhar um envio e não houver novas passagens, a atualização pode demorar seis horas ou mais, caso a rede continue indisponível.
 - Medir se o acionamento antecipado do PIR deixa tempo suficiente para detectar a primeira passagem. O tempo até obter rede no celular não é o mesmo que o tempo para iniciar a IA.
-- Decidir a política de repouso diante de falha persistente no cartão ou na IA. Atualmente há bloqueios conservadores, que podem manter a placa acordada.
+- Exercitar falha de rede, rejeição de credencial, cartão indisponível, recuperação da câmera e orçamento de envio sem interromper o rastreamento. Não induzir falhas removendo cartão ou câmera com alimentação ligada.
 - Validar alimentação, estabilidade do cartão, consumo real e autonomia. Não retirar cartão nem trocar fios com a placa ligada.
 - Após perda total de alimentação, é necessário recuperar um horário válido. Registros sem data ficam separados no cartão e não são enviados automaticamente como registros datados.
-- Durante o repouso não há vídeo nem detecção pela IA. O PIR continua sendo a fonte externa de acionamento. O painel da nuvem pode sinalizar ausência de atualização enquanto a ESP está dormindo; isso não diferencia sono e falta de rede.
+- Durante o repouso não há vídeo nem IA. O PIR continua sendo a fonte externa de acionamento. A ausência de comunicação nunca distingue, sozinha, sono, falta de energia e perda de rede.
 
 ## Limites da contagem
 

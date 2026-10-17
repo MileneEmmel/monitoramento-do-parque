@@ -11,18 +11,19 @@
     disabled: 'Modo contínuo: sono desativado',
     pir_active: 'PIR ativo',
     gpio_unavailable: 'Leitura do PIR indisponível',
-    sensor_unvalidated: 'Aguardando observar o PIR em 0 e em 1',
-    boot_grace: 'Estabilização após ligar ou despertar',
+    boot_grace: 'Estabilização inicial após ligar ou RESET',
     activity_window: 'Aguardando período sem atividade',
-    inference_stalled: 'IA sem quadros recentes; sono bloqueado',
+    camera_recovery: 'Tentativa limitada de recuperação da câmera',
     preparing: 'Salvando e preparando o sono',
     checkpoint_failed: 'Falha ao salvar os totais na memória interna',
     journal_failed: 'Falha na gravação do diário microSD',
+    journal_busy: 'Gravação em andamento no microSD',
     waiting_clock: 'Aguardando horário válido',
     cloud_busy: 'Envio à nuvem ainda ocupado',
     wifi_stop_failed: 'Não foi possível desligar o Wi-Fi',
     wake_arm_or_new_activity: 'Novo movimento ou falha ao preparar o despertar',
     new_activity: 'Nova atividade',
+    cloud_stop_timeout: 'Envio interrompido no limite; registros não confirmados serão reenviados',
   };
   const wake = { pir: 'Sensor PIR', timer: 'Temporizador', power_on: 'Placa ligada', reset: 'Reinício / RESET' };
   function append(text, at = Date.now(), uptime = null) {
@@ -48,6 +49,15 @@
       ai_people: 'IA detectou pessoa(s).', ai_empty: 'IA não detectou pessoas neste quadro.',
       sleep_prepare: 'Preparação do sono iniciada. A contagem segue ativa durante o envio.',
       sleep_cancelled: 'Sono cancelado: ' + (reasons[event.reason] || event.reason),
+      sleep_warning: 'Aviso antes do sono: ' + (reasons[event.reason] || event.reason),
+      cloud_attempt: 'Tentativa de envio à nuvem iniciada.',
+      cloud_ack: 'Nuvem confirmou o recebimento do envio.',
+      cloud_failed: event.reason === 'permanent'
+        ? 'Envio rejeitado ou erro persistente. Registros preservados; confira a configuração.'
+        : 'Envio sem confirmação. Registros preservados para nova tentativa.',
+      camera_recovery: 'IA sem quadros recentes. Uma tentativa de recuperação foi iniciada.',
+      camera_recovered: 'Recuperação da câmera confirmada por novo quadro da IA.',
+      camera_failed: 'Câmera indisponível. A falha será informada e não bloqueará o sono.',
       mode_changed: 'Modo salvo: ' + (event.reason === 'pir' ? 'sensor e deep sleep.' : 'contínuo para ajustes.'),
     };
     return text[event.kind] || event.kind;
@@ -71,6 +81,7 @@
         : 'A ESP respondeu, mas precisa receber a versão com monitor de campo.';
       $('monitor-proof').textContent = 'Sem confirmação de sono disponível nesta leitura. As leituras anteriores foram retiradas.';
       $('monitor-timing').textContent = 'Não foi possível consultar os tempos desta versão.';
+      $('monitor-sync').textContent = 'Sem leitura do envio à nuvem.';
       $('monitor-updated').textContent = 'Resposta incompatível às ' + time(lastSeen);
       return;
     }
@@ -81,7 +92,8 @@
     $('monitor-explanation').textContent = 'PIR: sinal de movimento. IA: detecção de pessoas na imagem. Um não substitui o outro.';
     $('monitor-pir').textContent = p.pir_level === 1
       ? 'Ativo há ' + seconds(m.pir_high_ms) + ' s' : p.pir_level === 0 ? 'Inativo (0)' : 'Indisponível';
-    $('monitor-ai').textContent = !p.camera_started ? 'Câmera aguardando acionamento'
+    $('monitor-ai').textContent = p.camera_fault ? 'Falha informada; contagem indisponível'
+      : !p.camera_started ? 'Câmera aguardando acionamento'
       : p.frame_age_ms < 0 ? 'Aguardando primeiro quadro'
       : p.frame_age_ms >= 5000 ? 'Sem quadros recentes'
       : m.people_detected === 1 ? 'Pessoa(s) detectada(s)' : 'Ativa, sem pessoas';
@@ -96,9 +108,25 @@
       ? 'Ciclo confirmado: o chip voltou de deep sleep por ' + (wake[m.wake_source] || m.wake_source) + '. O contador de ciclos reinicia após desligamento ou reinício comum. Isto não mede o consumo elétrico.'
       : m.deep_sleep_wake ? 'O chip informou despertar de deep sleep, mas não há marcador anterior pareado nesta versão.'
       : 'Ainda sem ciclo de deep sleep confirmado desde o último início comum. Ausência de resposta, sozinha, não comprova sono.';
-    $('monitor-timing').textContent = 'Valores atuais, ainda em validação: ' + p.idle_seconds + ' s sem atividade; despertar periódico após ' + p.sync_seconds + ' s de sono. '
+    $('monitor-timing').textContent = p.idle_seconds + ' s sem atividade; despertar periódico após ' + (p.sync_seconds / 3600) + ' h de sono. '
+      + (p.timer_only ? 'Despertar periódico: sincroniza sem ligar a câmera e volta a dormir. ' : '')
       + (m.first_frame_ms ? 'Do boot ao primeiro quadro: ' + (m.first_frame_ms / 1000).toFixed(1) + ' s. ' : '')
       + 'A prévia e este monitor não impedem o sono.';
+    const cloud = p.cloud || {};
+    const outcomes = {
+      drained: 'Fila de envio concluída.', send_failed: 'Falha de envio; registros ficam para o próximo ciclo.',
+      budget_exhausted: 'Limite de rede atingido; restantes preservados.', wifi_unavailable: 'Wi-Fi indisponível; nova tentativa no próximo ciclo.',
+      permanent_error: 'Envio exige revisão de credencial ou dados.', storage_unavailable: 'Cartão indisponível; histórico pode estar incompleto.',
+      not_configured: 'Envio à nuvem ainda não configurado.',
+    };
+    $('monitor-sync').textContent = (cloud.syncing ? 'Enviando à nuvem. '
+      : cloud.permanent_error ? 'Envio exige revisão. '
+      : cloud.phase === 'retry_wait' ? 'Nova tentativa em ' + seconds(cloud.next_attempt_ms) + ' s. '
+      : cloud.pending ? 'Há registros pendentes ou armazenamento sem confirmação. ' : 'Sem pendências na última verificação. ')
+      + (p.preparing ? 'Orçamento restante de rede: ' + seconds(p.network_remaining_ms) + ' s. ' : '')
+      + (outcomes[cloud.sleep_result] || '')
+      + (p.storage_ok === false ? ' Aviso: microSD sem gravação confirmada; não impede o sono.' : '')
+      + (p.clock_ok === false ? ' Horário inválido; passagens sem horário não são inventadas nem enviadas como datadas.' : '');
     $('monitor-updated').textContent = 'Atualizado às ' + time(lastSeen);
     if (boot !== m.boot_id) {
       boot = m.boot_id; lastSeq = 0;

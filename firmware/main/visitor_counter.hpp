@@ -15,6 +15,8 @@ struct CountSnapshot {
 bool visitor_counter_start();
 void visitor_counter_freeze(bool frozen);
 bool visitor_counter_flush();
+// Restore a persisted journal floor without discarding crossings since this boot.
+void visitor_counter_restore(uint64_t entries, uint64_t exits);
 CountSnapshot visitor_counter_update(const who::detect::WhoDetect::result_t &result);
 CountSnapshot visitor_counter_snapshot();
 bool visitor_counter_configure(const park::Config &config);

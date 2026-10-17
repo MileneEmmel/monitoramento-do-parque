@@ -54,12 +54,17 @@ extern const uint8_t foliage_start[] asm("_binary_park_foliage_start");
 extern const uint8_t foliage_end[] asm("_binary_park_foliage_end");
 extern const uint8_t font_start[] asm("_binary_park_font_start");
 extern const uint8_t font_end[] asm("_binary_park_font_end");
+extern const uint8_t favicon_start[] asm("_binary_park_favicon_start");
+extern const uint8_t favicon_end[] asm("_binary_park_favicon_end");
 esp_err_t service_handler(httpd_req_t *req)
 {
     // The dashboard is embedded in the application: no notebook or external assets.
     const uint8_t *begin = index_start, *end = index_end;
     const char *type = "text/html; charset=utf-8";
     bool binary = false;
+    if (!strcmp(req->uri, "/favicon.svg")) {
+        begin = favicon_start; end = favicon_end; type = "image/svg+xml";
+    }
     if (!strcmp(req->uri, "/app.js")) {
         begin = app_start;
         end = app_end;
@@ -637,6 +642,7 @@ bool wifi_preview_start()
         httpd_method_t method;
         esp_err_t (*handler)(httpd_req_t *);
     } routes[] = {{"/app.js", HTTP_GET, service_handler},
+                  {"/favicon.svg", HTTP_GET, service_handler},
                   {"/monitor.js", HTTP_GET, service_handler},
                   {"/monitor.css", HTTP_GET, service_handler},
                   {"/style.css", HTTP_GET, service_handler},

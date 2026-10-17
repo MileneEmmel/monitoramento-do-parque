@@ -250,7 +250,7 @@ async function refresh() {
     const [next, ds, ca] = await Promise.all([
       rpc('park_report', { p_park: park, p_start: start, p_end: end }),
       request(
-        '/rest/v1/park_devices?select=id,name,last_sync,storage_ok,clock_ok,enabled&id=eq.' +
+        '/rest/v1/park_devices?select=id,name,last_sync,storage_ok,clock_ok,enabled,operation&id=eq.' +
           encodeURIComponent(cfg.deviceId) +
           '&park_id=eq.' +
           encodeURIComponent(park),
@@ -310,11 +310,12 @@ function render() {
     .filter(Boolean)
     .sort()
     .at(-1);
-  const stale = !last || Date.now() - new Date(last) > 120000;
+  const operation = devices[0]?.operation || {};
+  const planned = operation.state === 'sleep_planned';
   $('sync-note').textContent = last
     ? 'Última sincronização: ' +
       momentLabel(last) +
-      (stale ? '. Sem atualização recente; consulte a conexão da placa.' : '')
+      (planned ? '. Sono programado informado; isso não confirma o estado atual.' : '. A placa envia novidades, não um sinal contínuo de presença.')
     : 'Aguardando o primeiro envio da ESP.';
   $('device-list').innerHTML = devices.length
     ? devices
@@ -324,6 +325,14 @@ function render() {
             escapeHTML(d.name) +
             '</h3><dl><dt>Último envio</dt><dd>' +
             escapeHTML(momentLabel(d.last_sync)) +
+            '</dd><dt>Funcionamento na última comunicação</dt><dd>' +
+            escapeHTML(d.operation?.state === 'sleep_planned'
+              ? 'Preparação do sono informada. Estado atual não confirmado.'
+              : 'Placa acordada na última comunicação. Estado atual não confirmado.') +
+            (d.operation?.state === 'sleep_planned' && Number(d.operation.expected_wake_epoch) > 0
+              ? ' Próximo despertar periódico previsto: ' + escapeHTML(momentLabel(new Date(Number(d.operation.expected_wake_epoch) * 1000).toISOString())) + '. O PIR pode antecipar.' : '') +
+            '</dd><dt>Câmera na última leitura</dt><dd>' +
+            (d.operation?.camera_ok === false ? 'Falha informada; contagem pode estar interrompida' : d.operation?.camera_ok === true ? 'Sem falha informada' : 'Sem leitura') +
             '</dd><dt>microSD na última leitura</dt><dd>' +
             (d.storage_ok === true
               ? 'Gravação disponível'
@@ -383,9 +392,6 @@ function render() {
 }
 function renderCameraAccess() {
   $('camera-access-section').hidden = !park || !isOwner;
-  const fresh =
-    cameraAccess?.fresh === true &&
-    Date.now() - new Date(cameraAccess.updated_at).getTime() < 120000;
   $('camera-address').textContent = cameraAccess?.available
     ? cameraAccess.address
     : 'Aguardando a ESP';
@@ -396,11 +402,9 @@ function renderCameraAccess() {
     cameraError ||
     (!cameraAccess?.available
       ? 'O endereço aparece automaticamente depois do próximo envio da ESP.'
-      : fresh
-        ? 'Endereço atualizado. A câmera abre somente na mesma rede Wi-Fi da placa.'
-        : 'Sem atualização recente. Este endereço pode ter mudado; aguarde a ESP voltar à internet.');
+      : 'Último endereço informado. Abra na mesma rede da ESP; durante o sono, o vídeo e o site local ficam indisponíveis. O endereço não confirma que a placa está acessível agora.');
   $('open-camera-link').disabled = $('copy-camera-link').disabled =
-    !fresh || cameraPending || !isOwner;
+    !cameraAccess?.available || cameraPending || !isOwner;
 }
 function validateCameraURL(value) {
   const url = new URL(value),
@@ -427,8 +431,8 @@ function validateCameraURL(value) {
 async function currentCameraURL() {
   await refreshSession();
   const result = await rpc('park_camera_access', { p_device: cfg.deviceId, p_include_key: true });
-  if (!result.fresh || !result.url)
-    throw Error('O endereço não está atualizado. Aguarde a ESP voltar à internet.');
+  if (!result.available || !result.url)
+    throw Error('O link ainda não foi informado ou o serviço precisa ser atualizado. Aguarde uma comunicação da ESP.');
   return validateCameraURL(result.url);
 }
 $('open-camera-link').addEventListener('click', async () => {

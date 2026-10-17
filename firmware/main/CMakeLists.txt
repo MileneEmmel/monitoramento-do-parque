@@ -17,7 +17,7 @@ get_filename_component(PARK_PUBLIC "${PARK_DASHBOARD_DIR}/public" ABSOLUTE)
 get_filename_component(PARK_LOCAL "${PARK_DASHBOARD_DIR}/local-public" ABSOLUTE)
 foreach(asset "${PARK_LOCAL}/index.html" "${PARK_LOCAL}/app.js" "${PARK_PUBLIC}/style.css"
               "${PARK_LOCAL}/monitor.js" "${PARK_LOCAL}/monitor.css"
-              "${PARK_PUBLIC}/folhagem-v2.webp" "${PARK_PUBLIC}/source-sans-3-v1.woff2")
+              "${PARK_PUBLIC}/folhagem-v2.webp" "${PARK_PUBLIC}/source-sans-3-v1.woff2" "${PARK_PUBLIC}/favicon.svg")
     if(NOT EXISTS "${asset}")
         message(FATAL_ERROR "Missing dashboard resource: ${asset}. Set PARK_DASHBOARD_DIR to the project dashboard directory.")
     endif()
@@ -30,3 +30,4 @@ target_add_binary_data(${COMPONENT_LIB} "${PARK_LOCAL}/monitor.css" TEXT RENAME_
 target_add_binary_data(${COMPONENT_LIB} "${PARK_PUBLIC}/style.css" TEXT RENAME_TO park_style)
 target_add_binary_data(${COMPONENT_LIB} "${PARK_PUBLIC}/folhagem-v2.webp" BINARY RENAME_TO park_foliage)
 target_add_binary_data(${COMPONENT_LIB} "${PARK_PUBLIC}/source-sans-3-v1.woff2" BINARY RENAME_TO park_font)
+target_add_binary_data(${COMPONENT_LIB} "${PARK_PUBLIC}/favicon.svg" TEXT RENAME_TO park_favicon)

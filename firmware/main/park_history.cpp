@@ -1,4 +1,5 @@
 #include "park_history.hpp"
+#include "app_settings.hpp"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -16,6 +17,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
+#include <atomic>
 #include "driver/sdmmc_host.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -29,6 +31,8 @@ constexpr const char *HEADER =
 SemaphoreHandle_t mutex = nullptr;
 bool mounted = false, healthy = false, baseline = false;
 bool dated_baseline = false;
+std::atomic<bool> initialized{false}, reported_healthy{false};
+std::atomic<uint32_t> data_revision{0};
 std::string error = "Verificando microSD";
 uint32_t boot = 0;
 uint64_t previous_e = 0, previous_x = 0;
@@ -232,7 +236,7 @@ void capture_locked(bool force = false)
     auto now = esp_timer_get_time();
     bool changed = baseline && (s.entries != previous_e || s.exits != previous_x);
     const bool clock_ready = !park_today().empty();
-    if (!force && baseline && !changed && now - previous_us < 30000000 && (dated_baseline || !clock_ready))
+    if (!force && baseline && !changed && now - previous_us < park::settings::sample_ms * 1000 && (dated_baseline || !clock_ready))
         return;
     Row r;
     r.epoch = time(nullptr);
@@ -264,6 +268,7 @@ void capture_locked(bool force = false)
         if (!r.e && !r.x) strcpy(r.kind, "baseline");
     }
     healthy = append(r);
+    reported_healthy.store(healthy);
     if (healthy) {
         error.clear();
         baseline = true;
@@ -272,10 +277,46 @@ void capture_locked(bool force = false)
         previous_us = now;
         last_write = r.epoch;
         if (r.epoch) dated_baseline = true;
+        if (r.e || r.x || !strcmp(r.kind, "reset")) ++data_revision;
     }
+}
+void restore_journal_floor()
+{
+    // Read only file tails, not the complete history. Monotonic totals have no
+    // public reset operation; legacy undated files also contain valid totals.
+    uint64_t e = 0, x = 0;
+    auto *dir = opendir(HISTORY_DIR);
+    if (!dir) return;
+    while (auto *entry = readdir(dir)) {
+        const std::string name = entry->d_name;
+        if (name.size() < 5 || name.substr(name.size()-4) != ".csv" ||
+            !(name.rfind("undated-", 0) == 0 || (name.size() == 14 && day_epoch(name.substr(0,10)) >= 0))) continue;
+        const auto path = std::string(HISTORY_DIR) + "/" + name;
+        FILE *f = fopen(path.c_str(), "r");
+        if (!f) continue;
+        char header[256] = {};
+        if (!fgets(header,sizeof(header),f) || strcmp(header,HEADER)) { fclose(f); continue; }
+        fseek(f,0,SEEK_END); const long size = ftell(f);
+        if (size > 2048) { fseek(f,size-2048,SEEK_SET); char skip[384]; fgets(skip,sizeof(skip),f); }
+        else fseek(f,strlen(HEADER),SEEK_SET);
+        char line[384];
+        while (fgets(line,sizeof(line),f)) {
+            Row r;
+            if (strchr(line,'\n') && decode(line,r)) { e=std::max(e,r.total_e); x=std::max(x,r.total_x); }
+        }
+        fclose(f);
+    }
+    closedir(dir);
+    const auto before = visitor_counter_snapshot();
+    visitor_counter_restore(e,x);
+    const auto after = visitor_counter_snapshot();
+    previous_e += after.entries-before.entries;
+    previous_x += after.exits-before.exits;
 }
 void task(void *)
 {
+    // Establish the boot baseline before slow storage/network work. The camera
+    // may already be counting; no first-visitor wait for the card is required.
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     host.max_freq_khz = 20000;
     sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
@@ -297,16 +338,19 @@ void task(void *)
         if (mounted) {
             card_mb = static_cast<unsigned>((uint64_t(card->csd.capacity) * card->csd.sector_size) / (1024 * 1024));
             error.clear();
+            restore_journal_floor();
         } else
             error = "Não foi possível criar a pasta park-monitor-v1 no microSD";
     } else
         error = std::string("microSD indisponível (") + esp_err_to_name(status) +
             "). Use FAT/FAT32; nenhum arquivo foi apagado.";
     ESP_LOGI("PARK_SD", "Mount %s; capacity=%u MiB; formatting disabled", mounted ? "OK" : "FAILED", card_mb);
+    if(mounted) capture_locked(true);
+    initialized.store(true);
     xSemaphoreGive(mutex);
     while (true) {
         park_history_capture();
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        vTaskDelay(pdMS_TO_TICKS(park::settings::journal_ms));
     }
 }
 } // namespace
@@ -331,6 +375,9 @@ bool park_history_start()
     ESP_LOGI("PARK_SD", "Journal codec self-test PASS");
     mutex = xSemaphoreCreateMutex();
     boot = esp_random();
+    const auto initial = visitor_counter_snapshot();
+    previous_e = initial.entries; previous_x = initial.exits;
+    previous_us = esp_timer_get_time(); baseline = true;
     return mutex && xTaskCreate(task, "ParkSD", 6144, nullptr, 1, nullptr) == pdPASS;
 }
 void park_history_capture()
@@ -348,15 +395,16 @@ bool park_history_ready()
     xSemaphoreGive(mutex);
     return ok;
 }
+bool park_history_initialized() { return initialized.load(); }
+bool park_history_healthy() { return reported_healthy.load(); }
+uint32_t park_history_revision() { return data_revision.load(); }
 bool park_history_sleep_lock()
 {
     if (!mutex || xSemaphoreTake(mutex, pdMS_TO_TICKS(2000)) != pdTRUE) return false;
     capture_locked(true);
-    const auto s = visitor_counter_snapshot();
-    const bool ok = mounted && healthy && baseline && dated_baseline &&
-        !park_today().empty() && previous_e == s.entries && previous_x == s.exits;
-    if (!ok) xSemaphoreGive(mutex);
-    return ok;
+    // Held even when the card/clock failed: report the fault, but do not make
+    // storage health a permanent sleep veto. NVS is flushed separately.
+    return true;
 }
 void park_history_sleep_unlock() { if (mutex) xSemaphoreGive(mutex); }
 std::string park_today()
@@ -503,11 +551,11 @@ void park_history_cloud_protect()
     cloud_protected = true;
     xSemaphoreGive(mutex);
 }
-ParkCloudBatch park_history_cloud_batch()
+ParkCloudBatch park_history_cloud_batch(unsigned timeout_ms)
 {
     ParkCloudBatch batch;
     if (!mutex) return batch;
-    xSemaphoreTake(mutex, portMAX_DELAY);
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(timeout_ms)) != pdTRUE) { batch.error="sd_busy"; return batch; }
     auto *directory = mounted ? opendir(HISTORY_DIR) : nullptr;
     std::vector<std::string> files;
     if (directory) {
@@ -534,7 +582,7 @@ ParkCloudBatch park_history_cloud_batch()
         batch.file=name; batch.from=offset;
         if (offset && fseek(f,offset,SEEK_SET)!=0) { fclose(f);batch.ok=false;batch.error="sd_seek_failed";break; }
         batch.records=cJSON_CreateArray();
-        while (cJSON_GetArraySize(batch.records)<8 && fgets(line,sizeof(line),f)) {
+        while (cJSON_GetArraySize(batch.records)<park::settings::batch_records && fgets(line,sizeof(line),f)) {
             // A partial or corrupt row must never be acknowledged/skipped silently.
             if (!strchr(line,'\n')) { batch.ok=false;batch.error="sd_partial_row"; break; }
             unsigned char digest[32];

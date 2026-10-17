@@ -1,4 +1,6 @@
 #pragma once
+// Only call with the application's capture/detection tasks paused.
+bool restart_dvp_capture();
 #include "who_frame_cap.hpp"
 
 #if CONFIG_IDF_TARGET_ESP32S3

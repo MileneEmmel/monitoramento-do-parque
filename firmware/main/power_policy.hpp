@@ -15,10 +15,8 @@ struct PowerPolicy {
     }
     void detection(bool people, uint64_t now) { frame = now; if (people) note_activity(now, "ai"); }
     const char *idle_block(uint64_t now, uint64_t boot_grace, uint64_t quiet) const {
-        if (!validated) return "sensor_unvalidated";
         if (now < boot_grace) return "boot_grace";
         if (now < activity || now - activity < quiet) return "activity_window";
-        if (camera && (!frame || now < frame || now - frame >= 5000)) return "inference_stalled";
         return "";
     }
     // Preview traffic never renews activity or vetoes sleep.
@@ -28,17 +26,19 @@ struct PowerPolicy {
 };
 inline bool power_policy_test() {
     PowerPolicy p;
-    if (p.idle(120000, 90000, 30000)) return false;
+    // Cold boot needs no first visitor; PIR is checked separately by the caller.
+    if (!p.idle(120000, 120000, 30000)) return false;
+    if (p.idle(119999, 120000, 30000)) return false;
     p.pir(0, 0); p.pir(1, 1000); p.pir(0, 2000);
     if (!p.validated || p.idle(40000, 90000, 30000)) return false;
     if (!p.idle(90000, 90000, 30000)) return false;
     p.camera = true;
-    if (p.idle(90000, 90000, 30000)) return false;
+    if (!p.idle(90000, 90000, 30000)) return false;
     p.detection(false, 90000);
     if (!p.idle(90000, 90000, 30000)) return false;
     p.detection(true, 90000);
     if (p.idle(91000, 90000, 30000)) return false;
     p.detection(false, 120000);
-    return p.idle(120000, 90000, 30000) && !p.idle(126000, 90000, 30000);
+    return p.idle(120000, 90000, 30000) && p.idle(126000, 90000, 30000);
 }
 }

@@ -22,6 +22,6 @@ menu "Visitor counter board"
         default 30
     config APP_PIR_SYNC_SECONDS
         int "Periodic wake for network synchronization (seconds)"
-        range 60 3600
-        default 300
+        range 60 86400
+        default 21600
 endmenu
