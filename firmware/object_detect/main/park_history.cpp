@@ -220,7 +220,7 @@ bool append(const Row &r)
         error = "Falha ao gravar no microSD; confira o cartão e a alimentação";
     return ok;
 }
-void capture_locked()
+void capture_locked(bool force = false)
 {
     if (!mounted)
         return;
@@ -230,7 +230,7 @@ void capture_locked()
     auto now = esp_timer_get_time();
     bool changed = baseline && (s.entries != previous_e || s.exits != previous_x);
     const bool clock_ready = !park_today().empty();
-    if (baseline && !changed && now - previous_us < 30000000 && (dated_baseline || !clock_ready))
+    if (!force && baseline && !changed && now - previous_us < 30000000 && (dated_baseline || !clock_ready))
         return;
     Row r;
     r.epoch = time(nullptr);
@@ -339,6 +339,24 @@ void park_history_capture()
     capture_locked();
     xSemaphoreGive(mutex);
 }
+bool park_history_ready()
+{
+    if (!mutex || xSemaphoreTake(mutex, pdMS_TO_TICKS(200)) != pdTRUE) return false;
+    const bool ok = mounted && healthy && baseline;
+    xSemaphoreGive(mutex);
+    return ok;
+}
+bool park_history_sleep_lock()
+{
+    if (!mutex || xSemaphoreTake(mutex, pdMS_TO_TICKS(2000)) != pdTRUE) return false;
+    capture_locked(true);
+    const auto s = visitor_counter_snapshot();
+    const bool ok = mounted && healthy && baseline && dated_baseline &&
+        !park_today().empty() && previous_e == s.entries && previous_x == s.exits;
+    if (!ok) xSemaphoreGive(mutex);
+    return ok;
+}
+void park_history_sleep_unlock() { if (mutex) xSemaphoreGive(mutex); }
 std::string park_today()
 {
     auto t = time(nullptr);

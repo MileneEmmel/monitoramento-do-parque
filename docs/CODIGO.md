@@ -19,7 +19,9 @@ Para trabalhar no site, use `cloud/public/` para relatórios online e `dashboard
 | `wifi_preview.cpp` | Wi-Fi, HTTP local, autenticação, ajustes e comandos USB. |
 | `park_history.cpp` | Diário microSD, checksums, relatórios, limpeza e cursores. |
 | `park_cloud.cpp` | HTTPS com certificado verificado, lotes, retentativas e status. |
-| `pir_sensor.cpp` | Diagnóstico sob demanda do nível digital do PIR no GPIO1, sem alterar contagem ou sono. |
+| `pir_sensor.cpp` | Entrada digital GPIO1, diagnóstico USB e armamento de despertar RTC/ext0 por nível alto. |
+| `power_policy.hpp` | Regras puras e autotestes de inatividade, presença, prévia e integridade da inferência. |
+| `park_power.cpp` | Inicialização sob demanda da câmera, política de sono e transação de salvamento antes do deep sleep. |
 | `Kconfig.projbuild` | Opções da aplicação. |
 | `idf_component.yml` | Dependências do componente. |
 | `CMakeLists.txt` | Compilação e inclusão dos recursos web no firmware. |
@@ -27,6 +29,8 @@ Para trabalhar no site, use `cloud/public/` para relatórios online e `dashboard
 Os `.hpp` expõem a interface de cada módulo. `sdkconfig.freenove` configura a placa; o lockfile fixa dependências do exemplo. Trechos de suporte a outros modelos/placas pertencem à base ESP-WHO e são selecionados por configuração na compilação.
 
 `firmware/object_detect/check_pir.py` consulta o diagnóstico USB e mostra somente o sinal do PIR. `test_check_pir.py` verifica identificação da placa, comandos permitidos e descarte de mensagens alheias ao teste. A validação física exige correlacionar mudanças do sinal com movimento e repouso.
+
+`configure_power.py` consulta o estado e habilita/desabilita o modo PIR por USB, sem reset automático. O mapa das condições, bloqueios e persistência está em [ENERGIA.md](ENERGIA.md). Falhas de gravação cancelam o sono; nenhuma confirmação de envio é fabricada.
 
 ### Detecção e contagem
 

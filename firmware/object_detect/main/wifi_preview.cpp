@@ -13,6 +13,7 @@
 #include "park_history.hpp"
 #include "park_cloud.hpp"
 #include "pir_sensor.hpp"
+#include "park_power.hpp"
 #include "visitor_counter.hpp"
 #include <cstdio>
 #include <atomic>
@@ -35,6 +36,7 @@ std::atomic<uint32_t> preview_until_ms{0};
 char token[33] = {};
 char authorization[48] = {};
 bool configured = false;
+std::atomic<bool> network_sleeping{false}, switching{false};
 esp_timer_handle_t reconnect_timer = nullptr;
 QueueHandle_t wifi_queue = nullptr;
 bool clock_started = false;
@@ -95,6 +97,12 @@ bool authorized(httpd_req_t *req)
         httpd_resp_set_status(req, "401 Unauthorized");
         httpd_resp_set_type(req, "application/json");
         httpd_resp_sendstr(req, "{\"error\":\"Use o link completo exibido no terminal de configuracao.\"}");
+        return false;
+    }
+    if (park_power_preparing() && req->method != HTTP_GET) {
+        httpd_resp_set_status(req, "503 Service Unavailable");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"error\":\"Preparando sono; tente novamente.\"}");
         return false;
     }
     return true;
@@ -182,7 +190,7 @@ esp_err_t frame_handler(httpd_req_t *req)
 
 void reconnect(void *)
 {
-    if (configured)
+    if (configured && !network_sleeping.load())
         esp_wifi_connect();
 }
 
@@ -227,6 +235,10 @@ void wifi_switch_task(void *)
     while (true) {
         if (xQueueReceive(wifi_queue, &config, portMAX_DELAY) != pdTRUE)
             continue;
+        switching.store(true);
+        if (network_sleeping.load()) {
+            memset(config.sta.password, 0, sizeof(config.sta.password)); switching.store(false); continue;
+        }
         vTaskDelay(pdMS_TO_TICKS(1200));
         configured = false;
         esp_timer_stop(reconnect_timer);
@@ -236,12 +248,14 @@ void wifi_switch_task(void *)
         configured = result == ESP_OK;
         if (configured)
             esp_wifi_connect();
+        switching.store(false);
     }
 }
 esp_err_t wifi_handler(httpd_req_t *req)
 {
     if (!authorized(req))
         return ESP_OK;
+    if (park_power_preparing()) return api_error(req, "Placa preparando sono; tente novamente.");
     auto j = body_json(req);
     auto ssid = cJSON_GetObjectItem(j, "ssid"), password = cJSON_GetObjectItem(j, "password");
     bool valid = cJSON_IsString(ssid) && cJSON_IsString(password) && strlen(ssid->valuestring) > 0 &&
@@ -392,6 +406,7 @@ esp_err_t state_response(httpd_req_t *req, bool include_report)
     cJSON_AddBoolToObject(wifi, "busy", wifi_queue && uxQueueMessagesWaiting(wifi_queue) > 0);
     cJSON_AddItemToObject(j, "storage", park_history_status());
     cJSON_AddItemToObject(j, "cloud", park_cloud_status());
+    cJSON_AddItemToObject(j, "power", park_power_status());
     if (include_report) cJSON_AddItemToObject(j, "report", park_history_report(start, end));
     return send_json(req, j);
 }
@@ -413,6 +428,7 @@ esp_err_t export_handler(httpd_req_t *req)
 
 void network_event(void *, esp_event_base_t base, int32_t id, void *data)
 {
+    if (network_sleeping.load()) return;
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START && configured)
         esp_wifi_connect();
     if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED && configured) {
@@ -455,7 +471,16 @@ void provision_task(void *)
             continue;
         }
         line[used] = 0;
-        if (!overflow && strncmp(line, "@WIFI ", 6) == 0) {
+        if (!overflow && strcmp(line, "@POWER_STATUS") == 0) {
+            auto json=park_power_status(); auto output=cJSON_PrintUnformatted(json);
+            if(output) {printf("\n@POWER_STATUS %s\n",output);cJSON_free(output);}
+            cJSON_Delete(json);fflush(stdout);
+        } else if (!overflow && strncmp(line, "@POWER ", 7) == 0) {
+            auto json=cJSON_Parse(line+7); const bool ok=park_power_configure(json); cJSON_Delete(json);
+            printf("\n@POWER_CONFIG {\"ok\":%s}\n", ok?"true":"false");fflush(stdout);
+        } else if (park_power_preparing()) {
+            printf("\n@BUSY {\"retry\":true}\n");fflush(stdout);
+        } else if (!overflow && strncmp(line, "@WIFI ", 6) == 0) {
             cJSON *json = cJSON_Parse(line + 6);
             const auto ssid = cJSON_GetObjectItemCaseSensitive(json, "ssid");
             const auto password = cJSON_GetObjectItemCaseSensitive(json, "password");
@@ -616,6 +641,22 @@ bool wifi_preview_start()
     return true;
 }
 
+bool wifi_preview_sleep()
+{
+    network_sleeping.store(true);
+    if (switching.load() || (wifi_queue && uxQueueMessagesWaiting(wifi_queue))) {
+        network_sleeping.store(false); return false;
+    }
+    if (reconnect_timer) esp_timer_stop(reconnect_timer);
+    const auto result = esp_wifi_stop();
+    if (result != ESP_OK) { network_sleeping.store(false); return false; }
+    return true;
+}
+void wifi_preview_wake()
+{
+    network_sleeping.store(false);
+    esp_wifi_start();
+}
 cJSON *wifi_preview_cloud_access()
 {
     esp_netif_ip_info_t ip = {};

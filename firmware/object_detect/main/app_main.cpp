@@ -8,6 +8,7 @@
 #include "visitor_counter.hpp"
 #include "park_history.hpp"
 #include "park_cloud.hpp"
+#include "park_power.hpp"
 #include "who_yield2idle.hpp"
 #if defined(CONFIG_HUMAN_FACE_DETECT_MODEL_LOCATION)
 #include "human_face_detect.hpp"
@@ -38,6 +39,7 @@ public:
 protected:
     void detect_result_cb(const who::detect::WhoDetect::result_t &result) override
     {
+        park_power_detection(!result.det_res.empty());
         const auto counts = visitor_counter_update(result);
         camera_preview_submit(result, counts);
         ++m_frames;
@@ -91,6 +93,22 @@ void run_detect_lcd()
 
 void run_detect_term()
 {
+#if CONFIG_APP_BOARD_FREENOVE_S3
+    const bool counter_ok = visitor_counter_start();
+    if (!counter_ok) ESP_LOGE("COUNTER", "Counting unavailable; check boot diagnostics");
+    const bool history_ok = park_history_start();
+    const bool network_ok = camera_preview_start();
+    const bool cloud_ok = park_cloud_start();
+    // Establish the journal baseline before the first detection in each new boot.
+    for (int i=0; i<100 && history_ok && !park_history_ready(); ++i) vTaskDelay(pdMS_TO_TICKS(100));
+    if (!park_history_ready()) ESP_LOGW("POWER", "Journal baseline unavailable; sleep will be blocked");
+    if (counter_ok && history_ok && network_ok && cloud_ok) {
+        if (!park_power_start()) ESP_LOGE("POWER", "Power manager unavailable; continuous mode retained");
+    }
+    ESP_LOGI("POWER", "Waiting for PIR or authenticated live preview before camera startup");
+    while (!park_power_should_start_camera()) vTaskDelay(pdMS_TO_TICKS(100));
+    park_power_camera_started();
+#endif
 #if CONFIG_IDF_TARGET_ESP32S3
     auto frame_cap = get_dvp_frame_cap_pipeline(false);
 #elif CONFIG_IDF_TARGET_ESP32P4
@@ -98,12 +116,6 @@ void run_detect_term()
     // auto frame_cap = get_uvc_frame_cap_pipeline(false);
 #endif
 #if CONFIG_APP_BOARD_FREENOVE_S3
-    if (!visitor_counter_start()) ESP_LOGE("COUNTER", "Counting unavailable; check boot diagnostics");
-    if (!park_history_start()) ESP_LOGE("PARK_SD", "History could not start");
-    if (!camera_preview_start()) {
-        ESP_LOGW("PREVIEW", "Preview could not start; detection will continue without it.");
-    }
-    if (!park_cloud_start()) ESP_LOGE("PARK_CLOUD", "Cloud worker could not start; SD recording continues");
     // Retain network/configuration and upload the existing SD backlog even if
     // the camera fails. Never manufacture new passage records in this mode.
     if (!frame_cap) {

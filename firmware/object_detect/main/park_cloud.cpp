@@ -10,6 +10,7 @@
 #include "nvs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include <atomic>
 #include <algorithm>
 #include <cstring>
@@ -23,6 +24,8 @@ std::atomic<time_t> last_success{0};
 std::atomic<const char *> phase{"starting"};
 std::atomic<int> last_error{ESP_OK};
 std::atomic<const char *> server_error{""};
+SemaphoreHandle_t cycle_mutex = nullptr;
+TaskHandle_t worker = nullptr;
 bool read(nvs_handle_t nvs,const char *key,char *out,size_t size) {
     return nvs_get_str(nvs,key,out,&size)==ESP_OK;
 }
@@ -46,6 +49,7 @@ esp_err_t send_bounded(esp_http_client_handle_t client,const char *body,std::str
 void task(void *) {
     unsigned retry_seconds=10;
     while (true) {
+        xSemaphoreTake(cycle_mutex, portMAX_DELAY);
         char device[40]={},token[65]={},key[192]={};
         nvs_handle_t nvs;
         bool ready=nvs_open("park_cloud",NVS_READONLY,&nvs)==ESP_OK;
@@ -59,7 +63,8 @@ void task(void *) {
         const bool wifi_ok=esp_wifi_sta_get_ap_info(&ap)==ESP_OK;
         if (!ready || !clock_ok || !wifi_ok) {
             phase.store(!ready?"not_configured":!clock_ok?"waiting_clock":"waiting_wifi");
-            memset(token,0,sizeof(token)); vTaskDelay(pdMS_TO_TICKS(10000)); continue;
+            memset(token,0,sizeof(token)); xSemaphoreGive(cycle_mutex);
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10000)); continue;
         }
         phase.store("reading_sd");
         auto batch=park_history_cloud_batch();
@@ -126,14 +131,21 @@ void task(void *) {
         cJSON_Delete(batch.records);memset(token,0,sizeof(token));
         retry_seconds=ok?10:std::min(300u,retry_seconds*2);
         // Drain backlog in bounded batches, otherwise heartbeat every 30 s.
-        vTaskDelay(pdMS_TO_TICKS(ok && records_ready && !batch.file.empty()?2000:ok?30000:retry_seconds*1000));
+        xSemaphoreGive(cycle_mutex);
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ok && records_ready && !batch.file.empty()?2000:ok?30000:retry_seconds*1000));
     }
 }
 }
 bool park_cloud_start() {
     park_history_cloud_protect();
-    return xTaskCreate(task,"ParkCloud",12288,nullptr,1,nullptr)==pdPASS;
+    cycle_mutex = xSemaphoreCreateMutex();
+    return cycle_mutex && xTaskCreate(task,"ParkCloud",12288,nullptr,1,&worker)==pdPASS;
 }
+void park_cloud_request_sync() { if (worker) xTaskNotifyGive(worker); }
+bool park_cloud_pause(unsigned timeout_ms) {
+    return cycle_mutex && xSemaphoreTake(cycle_mutex, pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
+}
+void park_cloud_resume() { if (cycle_mutex) xSemaphoreGive(cycle_mutex); }
 bool park_cloud_configure(const cJSON *json) {
     auto device=cJSON_GetObjectItemCaseSensitive(json,"device_id");
     auto token=cJSON_GetObjectItemCaseSensitive(json,"token");

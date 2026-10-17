@@ -1,5 +1,7 @@
 #pragma once
 #include "cJSON.h"
 
-// Read-only diagnostic. Does not gate detection, counting or sleep.
+bool pir_sensor_init();
+int pir_sensor_level();
+bool pir_sensor_arm_wakeup();
 cJSON *pir_sensor_status();

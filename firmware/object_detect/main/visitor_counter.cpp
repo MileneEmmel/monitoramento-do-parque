@@ -12,6 +12,7 @@ park::Counter counter;
 SemaphoreHandle_t mutex = nullptr;
 SemaphoreHandle_t save_mutex = nullptr;
 bool ready = false, storage_ok = false;
+bool frozen = false;
 uint32_t revision = 0, saved_revision = 0;
 // Single versioned blob keeps totals and calibration in the same NVS transaction.
 struct Saved {
@@ -118,7 +119,7 @@ CountSnapshot visitor_counter_update(const who::detect::WhoDetect::result_t &res
     }
     xSemaphoreTake(mutex,portMAX_DELAY);
     unsigned ids[park::capacity]={};
-    if (ready) {
+    if (ready && !frozen) {
         auto before=counter.entries+counter.exits;
         counter.update(observations,size,esp_timer_get_time(),ids);
         if (before!=counter.entries+counter.exits) {
@@ -136,9 +137,33 @@ CountSnapshot visitor_counter_update(const who::detect::WhoDetect::result_t &res
 bool visitor_counter_configure(const park::Config &c) {
     if (!mutex || !valid(c)) return false;
     xSemaphoreTake(mutex,portMAX_DELAY);
-    bool ok=ready;
+    bool ok=ready && !frozen;
     if (ok) { counter.config=c; counter.clear_tracks(); ++revision; }
     xSemaphoreGive(mutex); return ok;
+}
+void visitor_counter_freeze(bool value) {
+    if (!mutex) return;
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    frozen = value;
+    xSemaphoreGive(mutex);
+}
+bool visitor_counter_flush() {
+    if (!mutex || !save_mutex || !ready) return false;
+    if (xSemaphoreTake(save_mutex, pdMS_TO_TICKS(2000)) != pdTRUE) return false;
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    const auto saving = revision;
+    const bool dirty = saving != saved_revision;
+    Saved state={1,counter.config.first,counter.config.second,
+                 counter.config.horizontal,counter.config.reverse,counter.entries,counter.exits};
+    xSemaphoreGive(mutex);
+    const auto result = dirty ? write_state(state) : ESP_OK;
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    storage_ok = result == ESP_OK;
+    if (storage_ok) saved_revision = saving;
+    const bool ok = storage_ok && saved_revision == revision;
+    xSemaphoreGive(mutex);
+    xSemaphoreGive(save_mutex);
+    return ok;
 }
 std::string visitor_counter_json(const CountSnapshot &s) {
     char json[768];

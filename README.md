@@ -20,7 +20,7 @@ Câmera → detector de pessoas → rastreamento → cruzamento das linhas A/B
 Celular na mesma rede → ESP → imagem e ajustes de instalação
 ```
 
-A ESP inicia a contagem ao ligar, desde que a câmera e o detector inicializem. Não é necessário abrir um site ou manter um notebook ligado. Pausar a imagem interrompe as solicitações de prévia; a detecção continua em uma tarefa independente.
+Nesta branch experimental (`feature/pir-deep-sleep`), a ESP inicia câmera e IA quando o PIR aciona, quando há solicitação autenticada de prévia ou quando o modo contínuo está habilitado. Não é necessário manter um notebook ligado. Sem atividade, a placa pode salvar os dados e entrar em deep sleep. Veja [energia e PIR](docs/ENERGIA.md) antes de instalar.
 
 O dashboard online contém gráficos, histórico, exportação CSV e identificação editável do parque. A interface local da ESP contém câmera, calibração e Wi-Fi. O vídeo não passa pela nuvem e não é gravado no microSD.
 
@@ -40,7 +40,7 @@ O dashboard online contém gráficos, histórico, exportação CSV e identifica�
 
 A base ESP-WHO está fixada na revisão `1abda05e1c0782237fcb9e8d33a2fa7e105f06b2`. O firmware é uma adaptação do exemplo `object_detect`, aplicada sobre essa base.
 
-O PIR possui uma leitura de diagnóstico no GPIO1; ainda não controla a detecção ou o consumo. Deep sleep e operação por bateria não estão implementados. Precisão em campo e autonomia energética precisam ser medidas. A falha intermitente observada no microSD requer teste prolongado; não é tratada como definitivamente resolvida.
+O PIR no GPIO1 controla o despertar por nível alto. Há salvamento antes do sono e despertar periódico para sincronização. Precisão em campo, latência de despertar e autonomia energética precisam ser medidas; a alimentação física da câmera e dos LEDs não é desligada por um circuito externo. A falha intermitente observada no microSD requer teste prolongado. A versão contínua anterior foi preservada em `backup/antes-pir-deep-sleep`; `main` não foi alterada.
 
 ## Organização
 

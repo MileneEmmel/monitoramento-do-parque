@@ -4,6 +4,10 @@
 #include <string>
 bool park_history_start();
 void park_history_capture();
+bool park_history_ready();
+// Returns with the journal mutex held on success; release on an aborted sleep.
+bool park_history_sleep_lock();
+void park_history_sleep_unlock();
 cJSON *park_history_status();
 std::string park_today();
 std::string park_timestamp(time_t value);

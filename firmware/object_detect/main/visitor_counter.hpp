@@ -13,6 +13,8 @@ struct CountSnapshot {
     bool ready = false, storage_ok = false, pending = false;
 };
 bool visitor_counter_start();
+void visitor_counter_freeze(bool frozen);
+bool visitor_counter_flush();
 CountSnapshot visitor_counter_update(const who::detect::WhoDetect::result_t &result);
 CountSnapshot visitor_counter_snapshot();
 bool visitor_counter_configure(const park::Config &config);

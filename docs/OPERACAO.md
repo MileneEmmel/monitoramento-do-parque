@@ -16,7 +16,7 @@ Use celular ou computador na mesma rede da ESP. Redes de visitantes podem bloque
 
 Posicione a câmera para enxergar pessoas antes e depois da faixa A/B. Observe o centro da caixa, escolha o eixo e confira o sentido de entrada. Teste pessoas isoladas, duplas, retornos e velocidades diferentes. Aumentar a distância entre linhas não corrige uma pessoa que o detector não enxerga.
 
-Pausar reduz conversão JPEG e tráfego da prévia, mas a câmera continua capturando para a IA. Outro navegador aberto pode continuar solicitando imagens. A placa não entra em deep sleep.
+Pausar reduz conversão JPEG e tráfego da prévia. A IA continua enquanto o ciclo ativo não termina; na branch PIR a ESP pode dormir após inatividade, se todos os dados estiverem salvos. Outro navegador solicitando imagens mantém a prévia ativa e bloqueia o sono. Consulte [energia e PIR](ENERGIA.md).
 
 ## Troca de rede
 

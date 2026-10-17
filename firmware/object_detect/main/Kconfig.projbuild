@@ -10,4 +10,18 @@ menu "Visitor counter board"
         help
             Uses the camera wiring shared with ESP32-S3-EYE, but does not
             initialize the EYE LCD, LED or SD card. Results use UART0.
+    config APP_PIR_SLEEP
+        bool "Enable PIR-controlled deep sleep by default"
+        depends on APP_BOARD_FREENOVE_S3
+        default n
+        help
+            Experimental GPIO1 HC-SR501 wake. Runtime USB setting overrides this default.
+    config APP_PIR_IDLE_SECONDS
+        int "Quiet time before deep sleep (seconds)"
+        range 15 600
+        default 30
+    config APP_PIR_SYNC_SECONDS
+        int "Periodic wake for network synchronization (seconds)"
+        range 60 3600
+        default 300
 endmenu

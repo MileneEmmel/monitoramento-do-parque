@@ -53,7 +53,7 @@ A GC0308 usa XCLK de 20 MHz. A configuração inclui PSRAM octal e flash de 8 MB
 
 Após gravar o firmware atualizado, execute `python firmware/object_detect/check_pir.py --port COM5 --seconds 60` na raiz. O script consulta apenas `@PIR_STATUS`, sem reiniciar a placa nem registrar outras mensagens USB. Aguarde a estabilização do sensor antes de comparar movimento e repouso. Um sinal constante é inconclusivo, e transições durante a estabilização não comprovam detecção correta.
 
-O sensor ainda não controla a IA, a contagem ou deep sleep. O diagnóstico configura GPIO1 como entrada com pull-down; não identifica sozinho um sensor ausente ou um fio solto.
+Nesta branch o PIR controla a ativação da câmera e o despertar do deep sleep. O diagnóstico apenas lê o GPIO1; não o reconfigura durante a preparação do sono. Um sinal constante não identifica sozinho sensor ausente ou fio solto. Consulte [energia e PIR](../docs/ENERGIA.md), incluindo o modo contínuo de recuperação por USB.
 
 ## Configuradores USB
 
