@@ -1,147 +1,77 @@
 # Monitoramento do parque
 
-Sistema de contagem aproximada de entradas e saídas para apoiar relatórios de visitação de parques e unidades de conservação. A detecção e o rastreamento de pessoas acontecem em uma ESP32-S3. O microSD guarda os registros, e o dashboard permite consultar o histórico pela internet.
+Sistema de estimativa de entradas e saídas de visitantes com câmera e inteligência artificial na ESP32-S3. A placa processa as imagens, acompanha as pessoas que cruzam duas linhas virtuais, registra as passagens no microSD e sincroniza o histórico com o Supabase. O painel web permite consultar os dados de qualquer lugar.
 
-[Dashboard](https://monitoramento-parque.vercel.app/) · [Guia do código](docs/CODIGO.md) · [Operação e diagnóstico](docs/OPERACAO.md) · [Revisão técnica](docs/REVISAO.md)
+Não há reconhecimento facial. As imagens não são enviadas à nuvem: a visualização local serve para posicionar a câmera e ajustar a contagem.
 
-O sistema conta passagens. Uma pessoa que sai e retorna pode gerar outra entrada; os resultados não representam visitantes únicos nem ocupação garantida. O objetivo é estimar o fluxo, sem reconhecimento facial.
+## Organização do código
+
+| Pasta | Conteúdo |
+| --- | --- |
+| `firmware/main/` | Aplicação embarcada: câmera, contagem, armazenamento, rede, nuvem e gerenciamento de energia. |
+| `firmware/components/` | Componentes originais do ESP-WHO necessários para esta aplicação. |
+| `dashboard/local-public/` | Página de câmera e configurações servida pela ESP. |
+| `dashboard/public/` | Estilos, fonte e ilustração incorporados ao firmware. |
+| `cloud/public/` | Painel estático publicado na Vercel, incluindo seus próprios recursos visuais. |
+| `supabase/migrations/` | Estrutura do banco, funções de envio e regras de acesso. |
+
+O projeto ESP-IDF começa no `CMakeLists.txt` da raiz. Não depende da pasta externa `esp-who` nem de ferramentas auxiliares para copiar código antes de compilar. Os pacotes de terceiros são obtidos pelo gerenciador de componentes do ESP-IDF; as versões usadas pelo firmware estão fixadas em `firmware/main/idf_component.yml`.
+
+### Módulos principais
+
+- `app_main.cpp` e `frame_cap_pipeline.cpp`: inicialização e processamento dos quadros.
+- `counting_core.hpp` e `visitor_counter.cpp`: rastreamento, cruzamento das linhas e contagem por sentido.
+- `park_history.cpp`: diário persistente no microSD.
+- `park_cloud.cpp`: sincronização autenticada, com retomada dos registros pendentes.
+- `wifi_preview.cpp` e `camera_preview.cpp`: rede e acesso local à câmera.
+- `pir_sensor.cpp`, `park_power.cpp` e `power_policy.hpp`: presença, condições de repouso e despertar.
+- `counting_core_checks.cpp`: verificações internas executadas na inicialização, preservadas do firmware. Não é uma suíte externa de desenvolvimento.
+
+As adaptações desta aplicação estão em `firmware/main/`. Os componentes em `firmware/components/` vieram do [ESP-WHO](https://github.com/espressif/esp-who), revisão `1abda05e1c0782237fcb9e8d33a2fa7e105f06b2`, e mantêm o código original e a licença em `firmware/LICENSE-ESP-WHO`.
+
+## Hardware
+
+- Freenove ESP32-S3 com 8 MB de flash e 8 MB de PSRAM.
+- Câmera GC0308, configurada para captura RGB565 em 320 × 240.
+- Cartão microSD em FAT32.
+- Sensor PIR HC-SR501 na versão com economia de energia.
+- Alimentação USB de 5 V e acesso a uma rede Wi-Fi de 2,4 GHz.
+
+| Ligação | Pino da ESP32-S3 |
+| --- | --- |
+| PIR OUT | GPIO1 |
+| PIR VCC / GND | 5V / GND |
+| microSD CMD / CLK / D0 | GPIO38 / GPIO39 / GPIO40 |
+| Câmera SDA / SCL | GPIO4 / GPIO5 |
+| Câmera D0 a D7 | GPIO11, 9, 8, 10, 12, 18, 17, 16 |
+| Câmera VSYNC / HREF / PCLK / XCLK | GPIO6 / GPIO7 / GPIO13 / GPIO15 |
+
+O sinal de saída do PIR deve ser compatível com 3,3 V. Faça qualquer alteração de fios com a alimentação desligada; nunca inverta VCC e GND por tentativa.
+
+## Compilação
+
+Utilize ESP-IDF 5.5.5. No VS Code, abra a **raiz deste repositório**, selecione a instalação do ESP-IDF e o alvo `esp32s3`. No terminal do ESP-IDF, execute `idf.py build`. O resultado é `build/monitoramento_parque.bin`.
+
+As configurações iniciais estão em `firmware/sdkconfig.freenove` e `firmware/sdkconfig.defaults`. A tabela de partições está em `partitions.csv`. O diretório `build/`, os componentes baixados, o `sdkconfig` e o `dependencies.lock` gerados são locais e não fazem parte do repositório. O arquivo de dependências gerado contém caminhos específicos do computador; por isso, as versões são fixadas no manifesto da aplicação.
+
+A gravação pode ser feita pela extensão ESP-IDF ou com `idf.py -p COM5 flash`, ajustando a porta ao computador. Não use apagamento completo da flash nem formatação do cartão para atualizar normalmente: essas ações podem remover configurações e registros.
 
 ## Funcionamento
 
-```text
-Câmera → detector de pessoas → rastreamento → cruzamento das linhas A/B
-                                               │
-                                               ▼
-                                        microSD da ESP
-                                               │ HTTPS, com reenvio
-                                               ▼
-                                      Supabase → dashboard
+No modo contínuo, a placa inicializa a câmera e a detecção após ligar, independentemente de o navegador estar aberto. No modo com PIR, a captura aguarda presença ou solicitação da prévia local. O PIR sinaliza movimento; a contagem de pessoas é feita pela câmera e pelo cruzamento das linhas, não pelo número de pulsos do sensor.
 
-Celular na mesma rede → ESP → imagem e ajustes de instalação
-```
+Na versão experimental de baixo consumo, a placa respeita a estabilização inicial do sensor, a janela mínima de funcionamento e o período sem atividade antes de preparar o deep sleep. Antes de dormir, precisa concluir a gravação do diário. O despertar pode ocorrer pelo PIR ou pelo temporizador de sincronização, configurado para cinco minutos. A visualização da imagem não deve impedir o repouso. As regras e os tempos exatos estão em `park_power.cpp`, `power_policy.hpp` e `Kconfig.projbuild`.
 
-Nesta branch experimental (`feature/pir-deep-sleep`), a ESP inicia câmera e IA quando o PIR aciona, quando há solicitação autenticada de prévia ou quando o modo contínuo está habilitado. Não é necessário manter um notebook ligado. Sem atividade, a placa pode salvar os dados e entrar em deep sleep. Veja [energia e PIR](docs/ENERGIA.md) antes de instalar.
+O histórico é gravado no microSD em `park-monitor-v1`; os marcadores de sincronização ficam em `park-cloud-v1`. Se a internet cair, os registros persistidos podem ser enviados quando a conexão voltar. Uma falha no cartão não deve ser interpretada como histórico salvo: o sistema informa o erro e pode cancelar a entrada em sono para não perder registros.
 
-O dashboard online contém gráficos, histórico, exportação CSV e identificação editável do parque. A interface local da ESP contém câmera, calibração e Wi-Fi. O vídeo não passa pela nuvem e não é gravado no microSD.
+## Painel e nuvem
 
-## Hardware e software
+O painel da nuvem usa os arquivos de `cloud/public/`, sem etapa de montagem. A configuração de hospedagem está em `cloud/vercel.json`. O endereço publicado é [monitoramento-parque.vercel.app](https://monitoramento-parque.vercel.app/).
 
-| Componente | Configuração do projeto |
-| --- | --- |
-| Placa | Freenove ESP32-S3-WROOM N8R8, 8 MB de flash e 8 MB de PSRAM |
-| Câmera instalada | GC0308, captura RGB565 de 320 × 240 pixels |
-| Armazenamento | microSD em FAT/FAT32, SDMMC de 1 bit |
-| Rede | Wi-Fi de 2,4 GHz, modo estação; internet para sincronização |
-| Firmware | C++ com ESP-IDF 5.5.5 e ESP-WHO |
-| Modelo | `pedestrian_detect`, da Espressif |
-| Dashboard | HTML, CSS e JavaScript |
-| Banco e autenticação | Supabase/PostgreSQL, Auth e políticas RLS |
-| Hospedagem | Vercel |
+As migrações do Supabase definem o armazenamento e as permissões. O envio utiliza uma credencial exclusiva da placa; usuários do painel têm acesso conforme suas permissões. Senhas de Wi-Fi, credenciais de envio e chaves administrativas não devem entrar no Git. A configuração pública do painel contém somente os dados necessários à conexão do navegador, protegida pelas regras do banco.
 
-A base ESP-WHO está fixada na revisão `1abda05e1c0782237fcb9e8d33a2fa7e105f06b2`. O firmware é uma adaptação do exemplo `object_detect`, aplicada sobre essa base.
+A câmera continua na rede local. O celular precisa ter acesso à mesma rede da ESP para abrir o vídeo; o histórico na nuvem não tem essa restrição. No deep sleep, a página local fica indisponível até a placa despertar.
 
-O PIR no GPIO1 controla o despertar por nível alto. Há salvamento antes do sono e despertar periódico para sincronização. Precisão em campo, latência de despertar e autonomia energética precisam ser medidas; a alimentação física da câmera e dos LEDs não é desligada por um circuito externo. A falha intermitente observada no microSD requer teste prolongado. A versão contínua anterior foi preservada em `backup/antes-pir-deep-sleep`; `main` não foi alterada.
+## Limites da contagem
 
-## Organização
-
-```text
-monitoramento-do-parque/
-├── docs/                       mapa do código, operação e revisão técnica
-├── firmware/object_detect/     firmware adaptado e configuração USB
-├── dashboard/local-public/     câmera e ajustes servidos pela ESP
-├── dashboard/public/           CSS, fonte e ilustração compartilhados
-├── cloud/public/               dashboard online
-├── supabase/                   migrações SQL e testes do banco
-├── preparar.ps1                obtém a base e aplica o firmware
-└── atualizar-firmware.ps1       reaplica alterações ao checkout de trabalho
-```
-
-`esp-who/`, `cloud/dist/`, binários e caches são gerados localmente e não entram no Git. Edite as adaptações em `firmware/`, não apenas a cópia dentro de `esp-who/`.
-
-Comece pelo [guia do código](docs/CODIGO.md). Os guias de [firmware](firmware/README.md), [interface local](dashboard/README.md), [dashboard online](cloud/README.md) e [banco](supabase/README.md) detalham cada parte.
-
-## Preparar e compilar
-
-Requer Git com submódulos, ESP-IDF 5.5.5 com ferramentas ESP32-S3 e terminal com o ambiente IDF ativo. Node.js 22 ou superior é usado no dashboard. Os configuradores USB precisam de Python com `pyserial`.
-
-Em uma cópia limpa do repositório:
-
-```powershell
-.\preparar.ps1
-$env:IDF_EXTRA_ACTIONS_PATH = (Resolve-Path .\esp-who\tools).Path
-$env:IDF_TARGET = 'esp32s3'
-cd .\esp-who\examples\object_detect
-idf.py '-DSDKCONFIG_DEFAULTS=sdkconfig.freenove;sdkconfig.bsp.esp32_s3_eye_noglib' '-DDETECT_MODEL=pedestrian_detect' set-target esp32s3
-idf.py '-DSDKCONFIG_DEFAULTS=sdkconfig.freenove;sdkconfig.bsp.esp32_s3_eye_noglib' '-DDETECT_MODEL=pedestrian_detect' build
-```
-
-A preparação recusa sobrescrever um checkout existente. Após editar `firmware/`, execute `atualizar-firmware.ps1` na raiz e compile novamente. Consulte o [guia do firmware](firmware/README.md) antes de gravar.
-
-A compilação no ambiente de desenvolvimento não substitui a validação de uma instalação limpa em outra máquina.
-
-## Configuração inicial
-
-Conecte a ESP por USB e feche o monitor serial. No ambiente Python com `pyserial`:
-
-```powershell
-python .\firmware\object_detect\configure_wifi.py --port COM5
-python .\firmware\object_detect\configure_cloud.py --port COM5
-```
-
-O primeiro configurador solicita a rede e abre a interface local. O segundo solicita o ID e a credencial exclusiva de envio gerada pelo proprietário no dashboard. Senhas e tokens são solicitados de forma oculta e não são gravados em arquivos no computador.
-
-Os configuradores verificam a identificação USB da Freenove deste projeto. Outra placa exige revisar essa identificação e a pinagem, não apenas o número da COM.
-
-Para abrir a câmera sem alterar a rede salva:
-
-```powershell
-python .\firmware\object_detect\configure_wifi.py --port COM5 --status
-```
-
-O IP pode mudar entre redes. O proprietário também pode abrir a câmera pela página Equipamento do dashboard, quando houver atualização recente da ESP. O celular precisa estar na mesma rede local, sem isolamento entre dispositivos. Descobrir o endereço não transmite vídeo pela internet.
-
-## Histórico
-
-O cartão mantém arquivos diários em `/park-monitor-v1/` e cursores de sincronização em `/park-cloud-v1/`. A ESP persiste o cursor depois da confirmação HTTPS do lote. Reenvios de uma linha já recebida são deduplicados no banco.
-
-Os registros incluem horário, deltas de entradas e saídas e informações de integridade. Totais acumulados e calibração também têm checkpoints na NVS; eles não substituem o histórico diário.
-
-Sem internet, a ESP pode continuar registrando no cartão. O envio exige Wi-Fi, credencial e horário válidos. Eventos anteriores à sincronização do relógio ficam em arquivos sem data e não são atribuídos automaticamente a um dia. Desligamentos abruptos podem perder alterações ainda não persistidas.
-
-Não há exclusão automática. Se o cartão encher ou falhar, novas gravações podem falhar. Existe uma API local de limpeza com prévia e confirmação; a interface atual não oferece botão de limpeza. Consulte [operação](docs/OPERACAO.md).
-
-## Testes
-
-Na raiz do repositório:
-
-```powershell
-node dashboard/test_local.cjs
-node cloud/test_cloud.cjs
-node cloud/test_build.mjs
-node cloud/build.mjs
-python -m unittest discover -s firmware/object_detect -p 'test_*.py'
-```
-
-O núcleo de rastreamento tem testes C++ executados na inicialização do firmware. `supabase/tests.sql` e `supabase/tests_camera.sql` criam dados sintéticos em uma transação e fazem `ROLLBACK`.
-
-Esses testes não medem a precisão da câmera. Antes da instalação definitiva, compare contagem manual e automática nos dois sentidos, incluindo grupos, corridas, oclusões e condições de luz diferentes.
-
-## Publicação
-
-`node cloud/build.mjs` prepara os arquivos públicos em `cloud/dist/`. O procedimento da Vercel está em [cloud/PUBLICACAO.md](cloud/PUBLICACAO.md).
-
-Um push não grava firmware na ESP. A publicação atual também não tem integração Git automática configurada: atualizar o GitHub, sozinho, não atualiza o site. As migrações do Supabase são uma etapa separada.
-
-## Segurança
-
-- Histórico protegido por login e RLS; proprietário e leitor têm permissões distintas.
-- Credencial de envio limitada à placa. Chaves administrativas não pertencem ao firmware nem ao frontend.
-- Chave publishable e ID da placa são públicos e não substituem autenticação.
-- Câmera local com chave de acesso e HTTP: usar em rede confiável, sem encaminhar portas para a internet.
-- Endereço e chave da câmera ficam em esquema privado do banco, acessível ao proprietário pela função protegida. Administradores do banco também podem acessá-los.
-- A NVS não tem criptografia de flash configurada. Proteja fisicamente placa e cartão.
-- Não versionar senhas, tokens, `.env`, logs com credenciais, imagens de visitantes ou cópias do microSD.
-
-## Licenças
-
-A licença da base está em [firmware/LICENSE-ESP-WHO](firmware/LICENSE-ESP-WHO). Source Sans 3 usa SIL OFL, incluída em [dashboard/FONT-LICENSE.txt](dashboard/FONT-LICENSE.txt). Este repositório não concede uma licença geral adicional aos demais recursos.
+O resultado é uma estimativa de passagens, não de visitantes únicos. Ângulo, iluminação, velocidade, oclusões e pessoas muito próximas podem causar erros. É necessário validar o posicionamento e comparar a contagem automática com observações no local antes de utilizar os números em relatórios.

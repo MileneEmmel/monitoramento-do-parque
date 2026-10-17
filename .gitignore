@@ -1,5 +1,6 @@
-# ESP-WHO is downloaded at the pinned revision by preparar.ps1.
-/esp-who/
+/sdkconfig
+/sdkconfig.old
+/dependencies.lock
 **/build/
 **/managed_components/
 **/__pycache__/
@@ -19,6 +20,7 @@
 *.jpeg
 *.jpg
 *.csv
+!partitions.csv
 .DS_Store
 /cloud/dist/
 /cloud/site-source.zip

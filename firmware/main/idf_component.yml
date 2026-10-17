@@ -1,0 +1,18 @@
+dependencies:
+  esp32_s3_eye_noglib:
+    version: '6.0.0'
+  pedestrian_detect:
+    version: '0.3.2'
+  # Versions used by the firmware; keep upstream component manifests unchanged.
+  espressif/button: '4.2.1'
+  espressif/cmake_utilities: '0.5.3'
+  espressif/dl_fft: '0.7.0'
+  espressif/esp-dl: '3.3.11'
+  espressif/esp_cam_sensor: '2.0.1'
+  espressif/esp_codec_dev: '1.5.11'
+  espressif/esp_new_jpeg: '1.0.2'
+  espressif/esp_sccb_intf: '0.0.9'
+  espressif/esp_video: '2.0.1'
+  espressif/led_indicator: '2.1.2'
+  espressif/led_strip: '3.0.3'
+  espressif/usb_host_uvc: '2.4.2'

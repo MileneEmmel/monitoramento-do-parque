@@ -1,14 +1,10 @@
 * text=auto
 *.md text eol=lf
 *.js text eol=lf
-*.cjs text eol=lf
-*.mjs text eol=lf
 *.css text eol=lf
 *.html text eol=lf
 *.cpp text eol=lf
 *.hpp text eol=lf
-*.py text eol=lf
-*.ps1 text eol=lf
 *.sql text eol=lf
 *.webp binary
 *.woff2 binary

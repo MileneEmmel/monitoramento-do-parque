@@ -1,0 +1,7 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "idf.currentSetup": "C:\\Espressif\\frameworks\\esp-idf-v5.5.5",
+    "idf.port": "COM5",
+    "idf.customExtraVars": { "IDF_TARGET": "esp32s3" },
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json"
+}
