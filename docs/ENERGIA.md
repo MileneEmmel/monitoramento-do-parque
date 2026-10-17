@@ -67,3 +67,9 @@ Os autotestes da política C++ rodam no início do gerenciador e produzem `Polic
 Antes da instalação, confirme vários ciclos reais: presença inicia a câmera; repouso permite sono; PIR acorda; temporizador acorda sem presença; câmera volta a produzir quadros; NVS e totais por dia permanecem consistentes; falta de Wi-Fi não descarta pendências; erro do cartão bloqueia sono. Meça o tempo entre movimento e primeira detecção e registre falhas.
 
 Referência: [Sleep Modes — ESP-IDF 5.5.5 / ESP32-S3](https://docs.espressif.com/projects/esp-idf/en/v5.5.5/esp32s3/api-reference/system/sleep_modes.html).
+
+## Ensaio de bancada — 16/10/2026
+
+Compilação ESP-IDF 5.5.5 concluída e aplicação gravada com verificação de hash. Os 17 testes Python e os testes das interfaces local e online passaram. No boot, com PIR baixo, o diagnóstico confirmou câmera e detector ainda não iniciados. Após nível alto, houve inicialização e callbacks de inferência de 320 × 240 pixels.
+
+A proteção cancelou o sono enquanto o relógio estava indefinido. A sincronização opcional por USB foi confirmada sem alterar registros anteriores. Durante a observação seguinte houve acionamentos repetidos do PIR, renovando a janela de inatividade. **Entrada em deep sleep, despertar pelo PIR e despertar periódico ainda não foram confirmados fisicamente neste ensaio.** A economia de energia e a latência de despertar também não foram medidas. Não tratar esta branch como validada para instalação definitiva.
