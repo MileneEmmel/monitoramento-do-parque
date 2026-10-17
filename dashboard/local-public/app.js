@@ -22,7 +22,7 @@ let state = null,
   fetching = false,
   calibrationDirty = false,
   wifiSubmitting = false;
-let cameraPaused = false,
+let cameraPaused = true,
   cameraTimer = null,
   cameraDrawing = false,
   previewGeneration = 0,
@@ -280,15 +280,19 @@ async function drawFrame(frame, epoch = previewGeneration) {
     }
   }
 }
-$('pause-camera').addEventListener('click', () => {
-  cameraPaused = !cameraPaused;
+function setCameraPaused(value) {
+  cameraPaused = value;
   previewGeneration++;
-  $('pause-camera').textContent = cameraPaused ? 'Retomar imagem' : 'Pausar imagem';
+  $('pause-camera').textContent = cameraPaused ? 'Mostrar imagem' : 'Pausar imagem';
   if (cameraPaused) {
     clearTimeout(cameraTimer);
     $('camera-status').textContent = 'Imagem pausada. A contagem continua.';
-  } else scheduleCamera(0);
-});
+  } else {
+    if (!lastFrame) $('camera-placeholder').textContent = 'Aguardando imagem da ESP.';
+    scheduleCamera(0);
+  }
+}
+$('pause-camera').addEventListener('click', () => setCameraPaused(!cameraPaused));
 $('show-boxes').addEventListener('change', () => {
   if (lastFrame && !cameraPaused) drawFrame(lastFrame).catch(() => {});
 });

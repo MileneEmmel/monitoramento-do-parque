@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Câmera | Monitoramento do parque</title>
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/monitor.css" />
     <script src="/app.js" defer></script>
+    <script src="/monitor.js" defer></script>
   </head>
   <body>
     <a class="skip" href="#content">Ir para o conteúdo</a>
@@ -60,7 +62,7 @@
           <section class="panel camera-panel">
             <div class="section-heading">
               <h2>Ao vivo</h2>
-              <button class="button small" id="pause-camera">Pausar imagem</button>
+              <button class="button small" id="pause-camera">Mostrar imagem</button>
             </div>
             <div class="camera-surface">
               <canvas
@@ -69,13 +71,13 @@
                 height="240"
                 aria-label="Câmera ao vivo com linhas de contagem"
               ></canvas>
-              <p id="camera-placeholder">Aguardando imagem da ESP.</p>
+              <p id="camera-placeholder">Imagem pausada. Use “Mostrar imagem” para ajustar a câmera.</p>
             </div>
             <div class="camera-toolbar">
               <span id="people-now">Pessoas no quadro: —</span
               ><label><input type="checkbox" id="show-boxes" checked /> Mostrar detecções</label>
             </div>
-            <p id="camera-status" class="small-note" role="status">Aguardando imagem.</p>
+            <p id="camera-status" class="small-note" role="status">Prévia pausada. O monitor abaixo não aciona a câmera.</p>
             <p class="small-note">Pausar a imagem não interrompe a contagem.</p>
           </section>
           <section class="calibration-panel">
@@ -104,6 +106,47 @@
             <p class="small-note">Mantém os totais e reinicia os trajetos em andamento.</p>
           </section>
         </div>
+        <section class="field-monitor" id="field-monitor" aria-labelledby="monitor-heading">
+          <div class="section-heading monitor-heading">
+            <h2 id="monitor-heading">Monitor de campo</h2>
+            <span class="monitor-state" id="monitor-connection" role="status">Aguardando ESP</span>
+          </div>
+          <p id="monitor-explanation">O sinal do PIR e a atividade da IA são acompanhados separadamente.</p>
+          <dl class="monitor-readings">
+            <div><dt>Sensor de movimento</dt><dd id="monitor-pir">—</dd></div>
+            <div><dt>Detecção pela câmera</dt><dd id="monitor-ai">—</dd></div>
+            <div><dt>Espera para dormir</dt><dd id="monitor-wait">—</dd></div>
+            <div><dt>Último despertar</dt><dd id="monitor-wake">—</dd></div>
+            <div><dt>Ativações do PIR neste boot</dt><dd id="monitor-rises">—</dd></div>
+            <div><dt>Ciclos de sono confirmados</dt><dd id="monitor-cycles">—</dd></div>
+          </dl>
+          <p id="monitor-proof">A confirmação do deep sleep aparece depois que a ESP desperta. Ficar sem resposta não comprova sono.</p>
+          <p id="monitor-timing" class="monitor-timing">Aguardando os tempos configurados na placa.</p>
+          <div class="monitor-actions">
+            <button class="button primary" type="button" id="monitor-test">Testar sem vídeo</button>
+            <button class="button" type="button" id="monitor-download" disabled>Baixar registro</button>
+            <span id="monitor-updated">Sem leitura</span>
+          </div>
+          <details class="monitor-settings">
+            <summary>Modo de funcionamento</summary>
+            <form id="power-form">
+              <label for="power-mode">Modo salvo na ESP</label>
+              <select id="power-mode">
+                <option value="pir">Sensor e deep sleep</option>
+                <option value="continuous">Contínuo para ajustes</option>
+              </select>
+              <button class="button" id="power-save" disabled>Salvar modo</button>
+              <p>O modo contínuo impede o deep sleep e gasta mais energia. A escolha permanece após reiniciar.</p>
+              <p id="power-message" class="form-message" role="status"></p>
+            </form>
+          </details>
+          <details class="monitor-events" open>
+            <summary>Eventos do acompanhamento</summary>
+            <p>Horários deste aparelho. Os eventos são registrados pela ESP, mesmo entre duas consultas. Ativações do PIR não são contagens de pessoas.</p>
+            <ol id="monitor-events"><li>Aguardando a primeira leitura.</li></ol>
+            <p>Até 200 eventos ficam nesta aba; a ESP retém os últimos 32 eventos na memória de cada boot. Baixe antes de fechar. Isso não altera o histórico de visitação.</p>
+          </details>
+        </section>
         <details class="network-help">
           <summary>
             <span>Wi-Fi e acesso local</span

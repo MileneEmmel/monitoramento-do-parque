@@ -191,7 +191,9 @@ bool append(const Row &r)
     auto path = std::string(HISTORY_DIR) + "/" + date + ".csv";
     FILE *f = fopen(path.c_str(), "a+");
     if (!f) {
-        error = "Não foi possível abrir o arquivo no microSD";
+        const int code = errno;
+        error = "Não foi possível abrir o arquivo no microSD (" + std::string(strerror(code)) +
+            ", código " + std::to_string(code) + ")";
         return false;
     }
     rewind(f);
@@ -380,8 +382,13 @@ bool park_history_range(const std::string &a, const std::string &b)
 cJSON *park_history_status()
 {
     auto j = cJSON_CreateObject();
-    if (mutex)
-        xSemaphoreTake(mutex, portMAX_DELAY);
+    if (mutex && xSemaphoreTake(mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        cJSON_AddBoolToObject(j, "ok", false);
+        cJSON_AddBoolToObject(j, "busy", true);
+        cJSON_AddBoolToObject(j, "clock_ok", !park_today().empty());
+        cJSON_AddStringToObject(j, "error", "microSD ocupado; aguardando nova consulta");
+        return j;
+    }
     cJSON_AddBoolToObject(j, "mounted", mounted);
     cJSON_AddBoolToObject(j, "ok", healthy);
     cJSON_AddNumberToObject(j, "capacity_mb", card_mb);

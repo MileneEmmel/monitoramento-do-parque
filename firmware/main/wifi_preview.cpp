@@ -44,6 +44,10 @@ extern const uint8_t index_start[] asm("_binary_park_index_start");
 extern const uint8_t index_end[] asm("_binary_park_index_end");
 extern const uint8_t app_start[] asm("_binary_park_app_start");
 extern const uint8_t app_end[] asm("_binary_park_app_end");
+extern const uint8_t monitor_js_start[] asm("_binary_park_monitor_js_start");
+extern const uint8_t monitor_js_end[] asm("_binary_park_monitor_js_end");
+extern const uint8_t monitor_css_start[] asm("_binary_park_monitor_css_start");
+extern const uint8_t monitor_css_end[] asm("_binary_park_monitor_css_end");
 extern const uint8_t style_start[] asm("_binary_park_style_start");
 extern const uint8_t style_end[] asm("_binary_park_style_end");
 extern const uint8_t foliage_start[] asm("_binary_park_foliage_start");
@@ -65,6 +69,12 @@ esp_err_t service_handler(httpd_req_t *req)
         begin = style_start;
         end = style_end;
         type = "text/css; charset=utf-8";
+    }
+    if (!strcmp(req->uri, "/monitor.js")) {
+        begin = monitor_js_start; end = monitor_js_end; type = "text/javascript; charset=utf-8";
+    }
+    if (!strcmp(req->uri, "/monitor.css")) {
+        begin = monitor_css_start; end = monitor_css_end; type = "text/css; charset=utf-8";
     }
     if (!strcmp(req->uri, "/folhagem-v2.webp")) {
         begin = foliage_start;
@@ -417,6 +427,18 @@ esp_err_t state_response(httpd_req_t *req, bool include_report)
 }
 esp_err_t state_handler(httpd_req_t *req) { return state_response(req, true); }
 esp_err_t local_handler(httpd_req_t *req) { return state_response(req, false); }
+esp_err_t monitor_handler(httpd_req_t *req) {
+    if (!authorized(req)) return ESP_OK;
+    if (req->method == HTTP_POST) {
+        auto body = body_json(req);
+        const bool ok = park_power_configure(body);
+        cJSON_Delete(body);
+        if (!ok) return api_error(req, "Não foi possível alterar o modo. Aguarde a ESP ficar disponível.");
+    }
+    // No frames, NVS reads or SD queries: monitoring must stay lightweight and
+    // must never renew the presence timeout or start the camera.
+    return send_json(req, park_power_status());
+}
 esp_err_t export_handler(httpd_req_t *req)
 {
     if (!authorized(req))
@@ -598,7 +620,7 @@ bool wifi_preview_start()
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, network_event, nullptr));
     httpd_config_t http = HTTPD_DEFAULT_CONFIG();
     http.stack_size = 12288;
-    http.max_uri_handlers = 16;
+    http.max_uri_handlers = 20;
     http.lru_purge_enable = true;
     http.send_wait_timeout = 2;
     http.recv_wait_timeout = 2;
@@ -615,11 +637,15 @@ bool wifi_preview_start()
         httpd_method_t method;
         esp_err_t (*handler)(httpd_req_t *);
     } routes[] = {{"/app.js", HTTP_GET, service_handler},
+                  {"/monitor.js", HTTP_GET, service_handler},
+                  {"/monitor.css", HTTP_GET, service_handler},
                   {"/style.css", HTTP_GET, service_handler},
                   {"/folhagem-v2.webp", HTTP_GET, service_handler},
                   {"/source-sans-3-v1.woff2", HTTP_GET, service_handler},
                   {"/api/state", HTTP_GET, state_handler},
                   {"/api/local", HTTP_GET, local_handler},
+                  {"/api/monitor", HTTP_GET, monitor_handler},
+                  {"/api/monitor", HTTP_POST, monitor_handler},
                   {"/api/frame", HTTP_GET, frame_handler},
                   {"/api/calibration", HTTP_POST, counter_handler},
                   {"/api/settings", HTTP_POST, settings_handler},

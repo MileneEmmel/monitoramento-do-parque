@@ -1,0 +1,77 @@
+.field-monitor {
+  margin: 30px 0;
+  padding: 26px 30px;
+  background: var(--ground);
+  border-radius: 24px;
+}
+.monitor-heading { flex-wrap: wrap; gap: 12px; }
+.monitor-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.monitor-state::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.field-monitor[data-state='online'] .monitor-state { color: var(--signal); }
+.field-monitor[data-state='preparing'] .monitor-state,
+.field-monitor[data-state='offline'] .monitor-state { color: var(--warning); }
+.monitor-readings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 32px;
+  margin: 24px 0;
+}
+.monitor-readings div { min-width: 0; }
+.monitor-readings dt { color: var(--muted); font-size: 17px; }
+.monitor-readings dd {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.field-monitor[data-state='offline'] .monitor-readings { opacity: .65; }
+.monitor-timing { margin-top: 12px; color: var(--muted); }
+.monitor-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0;
+}
+#monitor-updated { color: var(--muted); }
+.monitor-settings, .monitor-events { padding: 16px 0; border-top: 1px solid var(--line); }
+.monitor-settings summary, .monitor-events summary {
+  cursor: pointer;
+  font-weight: 650;
+  padding: 6px 0;
+}
+.monitor-settings form { max-width: 620px; margin-top: 16px; }
+.monitor-settings select { width: 100%; margin: 8px 0 14px; }
+.monitor-settings p, .monitor-events p { margin-top: 12px; }
+#monitor-events {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+  max-height: 330px;
+  overflow-y: auto;
+  scrollbar-color: var(--muted) var(--ground);
+}
+#monitor-events li { padding: 9px 0; overflow-wrap: anywhere; }
+#monitor-events time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 12px; }
+@media (max-width: 1050px) {
+  .monitor-readings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 540px) {
+  .field-monitor { padding: 22px 18px; }
+  .monitor-readings { grid-template-columns: 1fr; gap: 16px; }
+  .monitor-actions .button { width: 100%; }
+}
