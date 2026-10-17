@@ -279,22 +279,27 @@ esp_err_t wifi_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(response, "accepted", true);
     return send_json(req, response);
 }
+bool set_clock_if_missing(const cJSON *j)
+{
+    const auto seconds = cJSON_GetObjectItemCaseSensitive(j, "epoch");
+    const bool valid = cJSON_IsNumber(seconds) && seconds->valuedouble >= 1704067200 && seconds->valuedouble < 4102444800;
+    if (!valid) return false;
+    if (park_today().empty()) {
+        timeval tv = {};
+        tv.tv_sec = static_cast<time_t>(seconds->valuedouble);
+        return settimeofday(&tv, nullptr) == 0;
+    }
+    return true;
+}
 esp_err_t time_handler(httpd_req_t *req)
 {
     if (!authorized(req))
         return ESP_OK;
     auto j = body_json(req);
-    auto seconds = cJSON_GetObjectItem(j, "epoch");
-    bool valid = cJSON_IsNumber(seconds) && seconds->valuedouble >= 1704067200 && seconds->valuedouble < 4102444800;
-    double value = valid ? seconds->valuedouble : 0;
+    const bool valid = set_clock_if_missing(j);
     cJSON_Delete(j);
     if (!valid)
         return api_error(req, "Horário inválido.");
-    if (park_today().empty()) {
-        timeval tv = {};
-        tv.tv_sec = static_cast<time_t>(value);
-        settimeofday(&tv, nullptr);
-    }
     auto response = cJSON_CreateObject();
     cJSON_AddBoolToObject(response, "ok", true);
     return send_json(req, response);
@@ -480,6 +485,9 @@ void provision_task(void *)
             printf("\n@POWER_CONFIG {\"ok\":%s}\n", ok?"true":"false");fflush(stdout);
         } else if (park_power_preparing()) {
             printf("\n@BUSY {\"retry\":true}\n");fflush(stdout);
+        } else if (!overflow && strncmp(line, "@TIME ", 6) == 0) {
+            auto json=cJSON_Parse(line+6); const bool ok=set_clock_if_missing(json); cJSON_Delete(json);
+            printf("\n@TIME_CONFIG {\"ok\":%s}\n", ok?"true":"false");fflush(stdout);
         } else if (!overflow && strncmp(line, "@WIFI ", 6) == 0) {
             cJSON *json = cJSON_Parse(line + 6);
             const auto ssid = cJSON_GetObjectItemCaseSensitive(json, "ssid");

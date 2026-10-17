@@ -23,6 +23,7 @@ park::PowerPolicy policy;
 SemaphoreHandle_t control = nullptr;
 std::atomic<bool> enabled{false}, preparing{false};
 std::atomic<const char *> phase{"starting"};
+std::atomic<const char *> last_block{""};
 uint64_t grace = 120000;
 uint64_t ms() { return esp_timer_get_time() / 1000; }
 park::PowerPolicy snapshot() {
@@ -45,9 +46,11 @@ void attempt_sleep() {
     bool cloud_locked = false, journal_locked = false, wifi_stopped = false;
     // Freeze before taking the durable snapshot. A failed save cancels sleep.
     bool ok = visitor_counter_flush();
+    if (!ok) last_block.store("checkpoint_failed");
     if (ok) {
         journal_locked = park_history_sleep_lock();
         ok = journal_locked;
+        if (!ok) last_block.store(park_today().empty() ? "waiting_clock" : "journal_failed");
     }
     if (journal_locked) { park_history_sleep_unlock(); journal_locked = false; }
     if (ok) {
@@ -56,15 +59,17 @@ void attempt_sleep() {
         const auto deadline = ms() + 8000;
         while (ms() < deadline && quiet()) vTaskDelay(pdMS_TO_TICKS(100));
         ok = quiet();
+        if (!ok) last_block.store("new_activity");
     }
-    if (ok) { cloud_locked = park_cloud_pause(2000); ok = cloud_locked; }
-    if (ok) { journal_locked = park_history_sleep_lock(); ok = journal_locked; }
-    if (ok) { wifi_stopped = wifi_preview_sleep(); ok = wifi_stopped; }
-    if (ok) ok = quiet();
+    if (ok) { cloud_locked = park_cloud_pause(2000); ok = cloud_locked; if (!ok) last_block.store("cloud_busy"); }
+    if (ok) { journal_locked = park_history_sleep_lock(); ok = journal_locked; if (!ok) last_block.store("journal_failed"); }
+    if (ok) { wifi_stopped = wifi_preview_sleep(); ok = wifi_stopped; if (!ok) last_block.store("wifi_stop_failed"); }
+    if (ok) { ok = quiet(); if (!ok) last_block.store("new_activity"); }
     if (ok) {
         phase.store("sleeping");
         ok = esp_sleep_enable_timer_wakeup(CONFIG_APP_PIR_SYNC_SECONDS * 1000000ULL) == ESP_OK &&
              pir_sensor_arm_wakeup();
+        if (!ok) last_block.store("wake_arm_or_new_activity");
         // A level-sensitive wake means motion during this final step wakes us immediately.
         if (ok) {
             ESP_LOGI("POWER", "DEEP_SLEEP: GPIO1 high or timer=%ds; counts and SD flushed",
@@ -82,7 +87,7 @@ void attempt_sleep() {
     phase.store("sleep_cancelled");
     touch();
     xSemaphoreGive(control);
-    ESP_LOGW("POWER", "Sleep cancelled: activity, storage, network shutdown or busy service");
+    ESP_LOGW("POWER", "Sleep cancelled: %s", last_block.load());
 }
 void task(void *) {
     while (true) {
@@ -146,6 +151,8 @@ cJSON *park_power_status() {
     cJSON_AddBoolToObject(json, "sensor_validated", p.validated);
     cJSON_AddBoolToObject(json, "camera_started", p.camera);
     cJSON_AddBoolToObject(json, "detector_ready", p.frame != 0);
+    cJSON_AddBoolToObject(json, "clock_ok", !park_today().empty());
+    cJSON_AddStringToObject(json, "last_block", last_block.load());
     cJSON_AddNumberToObject(json, "frame_age_ms", p.frame ? static_cast<double>(ms() - p.frame) : -1.0);
     cJSON_AddNumberToObject(json, "wake_cause", esp_sleep_get_wakeup_cause());
     cJSON_AddNumberToObject(json, "pir_level", pir_sensor_level());

@@ -47,3 +47,20 @@ class PowerUSBTests(unittest.TestCase):
         self.assertIn(b'@POWER {"enabled": false}\n', commands)
         self.assertEqual(commands[-1], b'@POWER_STATUS\n')
         self.assertIn('Modo salvo na ESP', str(output.call_args_list))
+
+    def test_optional_clock_sync_only_sends_time_before_status(self):
+        device = MagicMock()
+        device.__enter__.return_value = device
+        device.in_waiting = 1
+        device.read.side_effect = [b'@TIME_CONFIG {"ok":true}\n',
+                                   b'@POWER_STATUS {"enabled":true,"clock_ok":true}\n']
+        board = SimpleNamespace(device='COM5', vid=6790, pid=21971, serial_number='5C93054388')
+        with patch('sys.argv', ['configure_power.py', '--sync-time', '--watch-seconds', '2']), \
+             patch.object(configure_power.list_ports, 'comports', return_value=[board]), \
+             patch.object(configure_power.serial, 'Serial', return_value=device), \
+             patch.object(configure_power.time, 'time', return_value=1800000000), \
+             patch.object(configure_power.time, 'monotonic', side_effect=[0, 0, 0, 0, 1, 1, 1, 3]), \
+             patch('builtins.print'):
+            configure_power.main()
+        commands = [c.args[0] for c in device.write.call_args_list]
+        self.assertEqual(commands, [b'\n', b'@TIME {"epoch": 1800000000}\n', b'@POWER_STATUS\n'])

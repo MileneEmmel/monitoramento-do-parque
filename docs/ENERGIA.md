@@ -41,9 +41,14 @@ python firmware/object_detect/configure_power.py --port COM5 --enable
 
 # Acompanhar somente os campos de energia por até 120 segundos
 python firmware/object_detect/configure_power.py --port COM5 --watch-seconds 120
+
+# Ensaio sem Wi-Fi: definir pelo USB o relógio ainda indefinido
+python firmware/object_detect/configure_power.py --port COM5 --sync-time
 ```
 
 O modo fica salvo na NVS. Se a placa estiver dormindo, acione o PIR ou pressione RESET antes de configurar. USB não é fonte de despertar UART neste deep sleep. RESET inicia a janela de manutenção, mas não apaga dados. Os comandos correspondentes são `@POWER_STATUS` e `@POWER {"enabled":false}`/`true`.
+
+`--sync-time` usa o relógio UTC do notebook somente quando a ESP ainda não tem data válida. Não altera um relógio já válido nem redata arquivos antigos. O RTC mantém o horário entre ciclos de deep sleep; após falta de alimentação, sincronize pela internet ou por USB antes do ensaio.
 
 Os padrões de compilação ficam em `sdkconfig.freenove`: `APP_PIR_SLEEP`, `APP_PIR_IDLE_SECONDS` e `APP_PIR_SYNC_SECONDS`. Uma configuração USB salva prevalece sobre o padrão `APP_PIR_SLEEP`.
 

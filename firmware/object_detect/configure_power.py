@@ -15,6 +15,7 @@ def main():
     modes.add_argument('--disable', action='store_true')
     parser.add_argument('--watch-seconds', type=int, default=15)
     parser.add_argument('--logs', action='store_true', help='Show only safe power/camera diagnostic messages')
+    parser.add_argument('--sync-time', action='store_true', help='Set the notebook UTC time only if the ESP clock is undefined')
     args = parser.parse_args()
     if not 1 <= args.watch_seconds <= 600:
         raise SystemExit('Use de 1 a 600 segundos.')
@@ -29,6 +30,8 @@ def main():
     device.timeout, device.write_timeout = 0.3, 3
     device.dtr = device.rts = False
     acknowledged = command is None
+    clock_acknowledged = not args.sync_time
+    clock_command = ('@TIME ' + json.dumps({'epoch': int(time.time())}) + '\n').encode() if args.sync_time else None
     seen = False
     previous = None
     with device:
@@ -38,7 +41,7 @@ def main():
         pending = bytearray()
         while time.monotonic() < deadline:
             if time.monotonic() >= next_query:
-                device.write(command if not acknowledged else b'@POWER_STATUS\n')
+                device.write(clock_command if not clock_acknowledged else command if not acknowledged else b'@POWER_STATUS\n')
                 next_query = time.monotonic() + 1
             pending.extend(device.read(device.in_waiting or 1))
             while b'\n' in pending:
@@ -48,13 +51,18 @@ def main():
                     safe = re.search(r'\bPOWER: (?:Policy self-tests PASS[^\r\x1b]*|Boot: [^\r\x1b]*|DEEP_SLEEP: [^\r\x1b]*|Sleep cancelled: [^\r\x1b]*)|\bFREENOVE: Camera \+ AI OK: [^\r\x1b]*|\bMAIN: Camera unavailable[^\r\x1b]*', text)
                     if safe:
                         print(safe.group(0), flush=True)
-                for tag in (b'@POWER_CONFIG ', b'@POWER_STATUS '):
+                for tag in (b'@TIME_CONFIG ', b'@POWER_CONFIG ', b'@POWER_STATUS '):
                     index = line.find(tag)
                     if index < 0:
                         continue
                     try:
                         status = json.loads(line[index + len(tag):])
                     except ValueError:
+                        continue
+                    if tag == b'@TIME_CONFIG ':
+                        if status.get('ok'):
+                            clock_acknowledged = True
+                            print('Relogio definido se estava sem horario; registros antigos nao foram alterados.', flush=True)
                         continue
                     if tag == b'@POWER_CONFIG ':
                         if status.get('ok'):
@@ -63,7 +71,7 @@ def main():
                         continue
                     seen = True
                     # Print only non-secret, power-specific fields. Ignore all other UART traffic.
-                    state = {k: status.get(k) for k in ('enabled', 'phase', 'pir_level', 'sensor_validated', 'camera_started', 'detector_ready', 'wake_cause')}
+                    state = {k: status.get(k) for k in ('enabled', 'phase', 'pir_level', 'sensor_validated', 'camera_started', 'detector_ready', 'wake_cause', 'clock_ok', 'last_block')}
                     if state != previous:
                         print(json.dumps(state), flush=True)
                         previous = state
@@ -71,6 +79,8 @@ def main():
                 pending.clear()
     if not acknowledged:
         raise SystemExit('Sem confirmacao de gravacao. Acorde a ESP pelo PIR ou botao RESET e tente novamente.')
+    if not clock_acknowledged:
+        raise SystemExit('Horario nao confirmado. Acorde a ESP e tente novamente.')
     if not seen:
         raise SystemExit('Sem status: a ESP pode estar dormindo ou executando firmware antigo. Acione o PIR e tente novamente.')
 
