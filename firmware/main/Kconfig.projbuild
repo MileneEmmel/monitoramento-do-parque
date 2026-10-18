@@ -1,4 +1,8 @@
+# Defines Freenove board options and sleep parameters for the PIR sensor
+
 menu "Visitor counter board"
+
+    # Select board-specific application code and make the required camera sensor formats available at build time
     config APP_BOARD_FREENOVE_S3
         bool "Freenove ESP32-S3 WROOM N8R8 without LCD"
         depends on IDF_TARGET_ESP32S3
@@ -10,18 +14,26 @@ menu "Visitor counter board"
         help
             Uses the camera wiring shared with ESP32-S3-EYE, but does not
             initialize the EYE LCD, LED or SD card. Results use UART0.
+
+    # This is the initial build default, a mode saved through the running application takes precedence
     config APP_PIR_SLEEP
         bool "Enable PIR-controlled deep sleep by default"
         depends on APP_BOARD_FREENOVE_S3
         default n
         help
             Experimental GPIO1 HC-SR501 wake. Runtime USB setting overrides this default.
+
+    # Minimum quiet duration used by the runtime sleep policy, this is separate from cold-boot stabilization
     config APP_PIR_IDLE_SECONDS
         int "Quiet time before deep sleep (seconds)"
         range 15 600
         default 30
+
+    # Timer wake interval during deep sleep. PIR can wake the chip earlier, this is not the active upload collection
+    # interval
     config APP_PIR_SYNC_SECONDS
         int "Periodic wake for network synchronization (seconds)"
         range 60 86400
         default 21600
+
 endmenu
