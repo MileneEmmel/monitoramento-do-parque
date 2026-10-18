@@ -156,8 +156,8 @@ WhoFrameCap *get_dvp_frame_cap_pipeline(bool lcd) {
     auto capture_config = VideoCapture::Config(ESP_VIDEO_DVP_DEVICE_NAME, V4L2_PIX_FMT_RGB565X, buffer_count);
 
 #if CONFIG_APP_BOARD_FREENOVE_S3
-    // Orientation can be adjusted after checking the installed camera view
-    capture_config.set_hflip(true).set_vflip(true);
+    // Rotate the previous orientation by 180 degrees for use with the board held upside down
+    capture_config.set_hflip(false).set_vflip(false);
 #elif defined(BSP_BOARD_ESP32_S3_EYE)
     // EYE orientation from the original ESP-WHO example - Original logic preserved
     capture_config.set_vflip(true);
