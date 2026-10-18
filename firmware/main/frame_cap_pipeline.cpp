@@ -10,6 +10,7 @@
 #include "esp_check.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <fcntl.h>
 
 using namespace who::frame_cap;
 
@@ -53,6 +54,20 @@ bool restart_dvp_capture() {
 #if CONFIG_APP_BOARD_FREENOVE_S3
 // The GC0308 fitted to this board requires 20 MHz, unlike the EYE's 16 MHz
 static esp_cam_sensor_xclk_handle_t application_clock = nullptr;
+
+// Config(false) skips a control write in ESP-WHO; explicitly clear both sensor controls
+// so the GC0308's default horizontal mirror cannot turn the requested rotation into a reflection
+static esp_err_t set_inverted_mount_orientation() {
+    V4L2Device controls;
+    auto status = controls.open(ESP_VIDEO_DVP_DEVICE_NAME, O_RDWR);
+    if(status == ESP_OK)
+        status = controls.set_control(V4L2_CTRL_CLASS_USER, V4L2_CID_HFLIP, 0);
+    if(status == ESP_OK)
+        status = controls.set_control(V4L2_CTRL_CLASS_USER, V4L2_CID_VFLIP, 0);
+    if(status == ESP_OK)
+        ESP_LOGI("FREENOVE", "Inverted mount orientation applied: hflip=0 vflip=0");
+    return status;
+}
 
 // Releases video initialization and the external sensor clock after a failed startup
 static void release_failed_camera() {
@@ -167,6 +182,10 @@ WhoFrameCap *get_dvp_frame_cap_pipeline(bool lcd) {
 #endif
     // Initialization and streaming are separate operations. Clean up both video and clock state if either fails
     esp_err_t status = capture->init(capture_config);
+#if CONFIG_APP_BOARD_FREENOVE_S3
+    if(status == ESP_OK)
+        status = set_inverted_mount_orientation();
+#endif
     if(status == ESP_OK) {
         status = capture->start();
     }
