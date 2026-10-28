@@ -1,0 +1,109 @@
+...@_tema
+titulo: Visão geral do monitoramento do parque
+direction: right
+
+# Visão ilustrada de integração, inspirada na Figura 1 do professor.
+# Desenhos esquemáticos; detalhes dos pinos estão no diagrama de hardware.
+# Os SVGs locais são incorporados nas exportações pelo D2.
+classes: {
+  ilustracao: {
+    shape: image
+    label.near: outside-bottom-center
+    style: {font-size: 24; font-color: "#173A2B"; bold: true}
+  }
+  relacao: {
+    style: {stroke: "#35664A"; stroke-width: 2; font-color: "#173A2B"; font-size: 22; italic: false}
+  }
+  legenda: {
+    shape: text
+    style: {font-size: 24; font-color: "#173A2B"; bold: true}
+  }
+}
+
+acesso: "Acesso do parque\nEntradas e saídas de visitantes" {
+  class: ilustracao
+  icon: ./assets/visao-geral/parque.svg
+  left: 0
+  top: 220
+  width: 440
+  height: 380
+}
+pir: "Sensor PIR\nDetecta movimento" {
+  class: ilustracao
+  icon: ./assets/visao-geral/pir.svg
+  left: 660
+  top: 20
+  width: 180
+  height: 160
+  label.near: outside-right-center
+}
+esp: "" {
+  class: ilustracao
+  icon: ./assets/visao-geral/esp32-s3.svg
+  left: 640
+  top: 300
+  width: 220
+  height: 340
+}
+legenda_esp: "ESP32-S3 com câmera\nCaptura e processamento" {class: legenda; left: 575; top: 670; width: 350; height: 70}
+passagem: "Contagem na ESP\nPassagem confirmada" {
+  class: ilustracao
+  icon: ./assets/visao-geral/passagem.svg
+  left: 1110
+  top: 340
+  width: 380
+  height: 260
+  label.near: outside-top-center
+}
+registros: "" {
+  shape: circle
+  left: 1295
+  top: 800
+  width: 10
+  height: 10
+  style: {fill: "#35664A"; stroke: "#35664A"}
+}
+cartao: "microSD\nHistórico local" {
+  class: ilustracao
+  icon: ./assets/visao-geral/microsd.svg
+  left: 695
+  top: 960
+  width: 110
+  height: 140
+}
+rede: Wi-Fi do parque {
+  class: ilustracao
+  icon: ./assets/visao-geral/roteador.svg
+  left: 1185
+  top: 945
+  width: 230
+  height: 170
+}
+nuvem: "Nuvem\nHistórico de visitação" {
+  class: ilustracao
+  icon: ./assets/visao-geral/nuvem.svg
+  left: 1770
+  top: 940
+  width: 260
+  height: 180
+}
+painel: Celular ou computador {
+  class: ilustracao
+  icon: ./assets/visao-geral/dashboard.svg
+  left: 1700
+  top: 300
+  width: 400
+  height: 280
+  label.near: outside-top-center
+}
+
+acesso -> pir: Movimento {class: relacao}
+acesso -> esp: Imagem do acesso {class: relacao}
+pir -> esp: Aciona a detecção {class: relacao}
+esp -> passagem: IA e rastreamento {class: relacao}
+passagem -- registros: "Histórico de\nentradas e saídas" {class: relacao}
+registros -> cartao: Gravação local {class: relacao}
+registros -> rede: {class: relacao}
+rede -> nuvem: "Envio por HTTPS\nSem vídeo" {class: relacao}
+nuvem -> painel: "Dashboard e histórico\nAcesso pela internet" {class: relacao}
+rede <-> painel: "Câmera e ajustes\nMesma rede da ESP" {class: relacao; style.stroke-dash: 5}

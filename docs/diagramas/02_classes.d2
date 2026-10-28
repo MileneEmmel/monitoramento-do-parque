@@ -1,0 +1,101 @@
+...@_tema
+titulo: Classes e estruturas centrais do firmware
+direction: right
+
+# A disposição é manual para preservar os grupos em paisagem.
+
+WhoDetectAppTerm: {
+  class: classe
+  left: 0
+  top: 460
+  width: 440
+  "run()": bool
+  "#detect_result_cb(result)": void
+}
+FreenoveDetectApp: {
+  class: classe
+  left: 0
+  top: 0
+  width: 440
+  "-m_processed_frames": atomic_uint32
+  "-m_initial_recovery": atomic_bool
+  "+run()": bool
+  "+mark_initial_recovery()": void
+  "#detect_result_cb(result)": void
+}
+Counter: "park::Counter" {
+  class: classe
+  left: 680
+  top: 180
+  width: 520
+  "+config": Config
+  "+entries": uint64_t
+  "+exits": uint64_t
+  "-tracks[32]": Track
+  "+update(...)": void
+  "+state(id, now)": int
+  "+clear_tracks()": void
+}
+Config: "park::Config" {
+  class: classe
+  left: 1420
+  top: 0
+  width: 350
+  "+first, second": float
+  "+horizontal, reverse": bool
+}
+Track: "park::Track" {
+  class: classe
+  left: 1420
+  top: 380
+  width: 350
+  "+id, hits": unsigned
+  "+x, y, vx, vy": float
+  "+origin, zone": int
+  "+seen, counted_at": int64_t
+}
+Observation: "park::Observation" {
+  class: classe
+  left: 680
+  top: 650
+  width: 350
+  "+x, y": float
+  "+width, height": float
+}
+PowerPolicy: "park::PowerPolicy" {
+  class: classe
+  left: 2010
+  top: 0
+  width: 520
+  "+activity, frame": uint64_t
+  "+camera, validated": bool
+  "+pir(level, now_ms)": void
+  "+detection(people, now_ms)": void
+  "+idle_block(now, grace, quiet)": const_char_ptr
+}
+CloudSchedule: "park::CloudSchedule" {
+  class: classe
+  left: 2010
+  top: 490
+  width: 520
+  "+collect_at, retry_at": uint64_t
+  "+failures": unsigned
+  "+permanent": bool
+  "+pending(now_ms)": void
+  "+due(now_ms, closing)": bool
+  "+success()": void
+  "+failure(now, closing, retryable)": void
+}
+
+FreenoveDetectApp -> WhoDetectAppTerm: {
+  target-arrowhead: {shape: triangle; style.filled: false}
+}
+Counter <- Config: "1" {
+  source-arrowhead: {shape: diamond; style.filled: true}
+}
+Counter <- Track: "32 posições" {
+  source-arrowhead: {shape: diamond; style.filled: true}
+}
+Counter -> Observation: Usa {style.stroke-dash: 4}
+FreenoveDetectApp -> Counter: "visitor_counter_update" {style.stroke-dash: 4}
+FreenoveDetectApp -> PowerPolicy: "park_power_detection" {style.stroke-dash: 4}

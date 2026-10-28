@@ -1,0 +1,23 @@
+...@_tema
+titulo: Fluxo de contagem por trajetória
+direction: right
+
+inicio: "Novo resultado\nda IA" {class: destaque; shape: oval; left: 0; top: 200; width: 230; height: 100}
+preparar: "Validar e associar detecções\nAtualizar as trajetórias" {class: bloco; left: 380; top: 200; width: 380; height: 100}
+zona: "Centro fora da\nfaixa A/B?" {class: bloco; shape: diamond; left: 930; top: 160; width: 290; height: 180; label.near: center-center}
+origem: "Tem lado\nde origem?" {class: bloco; shape: diamond; left: 1370; top: 160; width: 290; height: 180; label.near: center-center}
+cruzou: "Lado oposto\ne pelo menos\n2 observações?" {class: bloco; shape: diamond; left: 1810; top: 140; width: 340; height: 220; label.near: center-center}
+somar: "Somar entrada ou saída\nAplicar sentido configurado" {class: destaque; left: 2310; top: 200; width: 330; height: 100}
+atualizar: "Atualizar origem\nRegistrar evento" {class: bloco; left: 2310; top: 550; width: 330; height: 100}
+armar: "Definir lado de origem\nNão contar" {class: bloco; left: 1370; top: 550; width: 290; height: 100}
+proximo: "Próxima trajetória ou\nconcluir análise da imagem\ne disponibilizar resultados" {class: bloco; left: 1810; top: 850; width: 380; height: 130}
+
+inicio -> preparar -> zona
+zona -> proximo: Não
+zona -> origem: Sim
+origem -> armar: Não
+armar -> proximo
+origem -> cruzou: Sim
+cruzou -> proximo: Não
+cruzou -> somar: Sim
+somar -> atualizar -> proximo

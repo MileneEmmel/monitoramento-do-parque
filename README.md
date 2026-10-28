@@ -13,7 +13,8 @@ Não há reconhecimento facial. As imagens não são enviadas à nuvem: a visual
 | `dashboard/local-public/` | Página de câmera e configurações servida pela ESP. |
 | `dashboard/public/` | Estilos, fonte e ilustração incorporados ao firmware. |
 | `cloud/public/` | Painel estático publicado na Vercel, incluindo seus próprios recursos visuais. |
-| `supabase/migrations/` | Estrutura do banco, funções de envio e regras de acesso. |
+| `supabase/schema.sql` | Definição final do banco, funções de envio e regras de acesso para um projeto Supabase novo. |
+| `docs/diagramas/` | Diagramas D2, figuras SVG/PNG e guia de uso no relatório. |
 
 O projeto ESP-IDF começa no `CMakeLists.txt` da raiz. Não depende da pasta externa `esp-who` nem de ferramentas auxiliares para copiar código antes de compilar. Os pacotes de terceiros são obtidos pelo gerenciador de componentes do ESP-IDF; as versões usadas pelo firmware estão fixadas em `firmware/main/idf_component.yml`.
 
@@ -30,6 +31,10 @@ O projeto ESP-IDF começa no `CMakeLists.txt` da raiz. Não depende da pasta ext
 - `counting_core_checks.cpp`: verificações internas executadas na inicialização, preservadas do firmware. Não é uma suíte externa de desenvolvimento.
 
 As adaptações desta aplicação estão em `firmware/main/`. Os componentes em `firmware/components/` vieram do [ESP-WHO](https://github.com/espressif/esp-who), revisão `1abda05e1c0782237fcb9e8d33a2fa7e105f06b2`, e mantêm o código original e a licença em `firmware/LICENSE-ESP-WHO`.
+
+## Diagramas
+
+Os modelos de casos de uso, classes, sequência, estados e hardware estão em [docs/diagramas](docs/diagramas/README.md), junto da visão geral, da organização de software e do fluxo de contagem. O guia relaciona cada figura às seções do relatório e explica como editar e exportar os arquivos com D2.
 
 ## Hardware
 
@@ -70,7 +75,15 @@ O histórico é gravado no microSD em `park-monitor-v1`; os marcadores de sincro
 
 O painel da nuvem usa os arquivos de `cloud/public/`, sem etapa de montagem. A configuração de hospedagem está em `cloud/vercel.json`. O endereço publicado é [monitoramento-parque.vercel.app](https://monitoramento-parque.vercel.app/).
 
-As migrações do Supabase definem o armazenamento e as permissões. O envio utiliza uma credencial exclusiva da placa; usuários do painel têm acesso conforme suas permissões. Senhas de Wi-Fi, credenciais de envio e chaves administrativas não devem entrar no Git. A configuração pública do painel contém somente os dados necessários à conexão do navegador, protegida pelas regras do banco.
+O arquivo `supabase/schema.sql` reúne a definição final das tabelas, índices, funções, políticas de acesso e permissões. O envio utiliza uma credencial exclusiva da placa; usuários do painel têm acesso conforme suas permissões. Senhas de Wi-Fi, credenciais de envio e chaves administrativas não devem entrar no Git. A configuração pública do painel contém somente os dados necessários à conexão do navegador, protegida pelas regras do banco.
+
+### Banco de dados
+
+O esquema é destinado à instalação inicial em um **projeto Supabase novo**, com os recursos de autenticação padrão já disponíveis. Execute o arquivo inteiro uma única vez pelo SQL Editor, como proprietário do banco. A criação ocorre em uma transação e é recusada se as tabelas da aplicação já existirem. O arquivo não é uma atualização de banco existente e não contém usuários, registros de visitação ou credenciais.
+
+O projeto Supabase que já está em funcionamento não precisa receber esse SQL novamente. A consolidação dos arquivos locais não altera o banco remoto, as contas ou os dados existentes. Não utilize reset, recriação de tabelas ou `supabase db push` para aplicar esta reorganização ao ambiente atual. O repositório passa a documentar o esquema final, sem manter uma sequência de migrações para atualização automática; mudanças futuras no banco existente exigem SQL incremental próprio e backup prévio.
+
+Em uma instalação nova, cadastre os usuários no Supabase Auth e configure o parque, as permissões dos responsáveis e a credencial do dispositivo antes de usar o painel e o firmware. Informe o endereço e a chave pública do novo projeto em `cloud/public/config.js` e configure o acesso de envio na ESP sem publicar sua credencial no repositório. O esquema não é um backup dos dados nem substitui a configuração desses acessos.
 
 A câmera continua na rede local. O celular precisa ter acesso à mesma rede da ESP para abrir o vídeo; o histórico na nuvem não tem essa restrição. No deep sleep, a página local fica indisponível até a placa despertar.
 
@@ -114,7 +127,7 @@ O cursor do cartão avança somente após a nuvem confirmar a quantidade exata r
 
 Estado do cartão, validade do relógio, endereço privado da câmera e operação são enviados no anúncio inicial e quando mudam. O controle de mudanças avança somente após confirmação. O banco preserva campos ausentes nos envios parciais. O anúncio de preparo indica intenção de dormir e previsão de despertar, nunca comprova o estado atual. A nuvem não trata dois minutos de silêncio como defeito e permite ao proprietário abrir o último link conhecido, avisando que ele exige a mesma rede e uma ESP acordada.
 
-Antes de usar o novo firmware, aplique `supabase/migrations/202610170001_sleep_sync.sql` ao projeto existente e publique `cloud/public/`. A migração mantém histórico, credenciais e permissões anteriores. Não contém chaves administrativas ou privadas.
+O esquema final inclui os campos de operação e as funções de sincronização usados pelo firmware atual. Esses objetos já fazem parte do projeto existente; a consolidação local não exige reaplicar SQL, publicar o painel ou gravar novamente a ESP.
 
 O monitor só chama um ciclo de **confirmado** quando o próximo boot informa reinício por deep sleep e encontra o marcador anterior na memória RTC. Perda de conexão, sozinha, nunca comprova sono. Os ciclos da sessão são zerados em um reinício comum ou desligamento. Isso confirma o estado do chip, não mede a corrente da placa completa, câmera, PIR ou regulador.
 
@@ -139,3 +152,8 @@ O monitor só chama um ciclo de **confirmado** quando o próximo boot informa re
 ## Limites da contagem
 
 O resultado é uma estimativa de passagens, não de visitantes únicos. Ângulo, iluminação, velocidade, oclusões e pessoas muito próximas podem causar erros. É necessário validar o posicionamento e comparar a contagem automática com observações no local antes de utilizar os números em relatórios.
+
+
+
+C:\Users\Milene>& 'C:\Espressif\tools\python\v5.5.5\venv\Scripts\python.exe' 'C:\Users\Milene\SistemasEmbarcados\backups\reorganizacao-20261017-codigo\object_detect-anterior\configure_wifi.py' --port COM5
+& foi inesperado neste momento.

@@ -1,0 +1,29 @@
+...@_tema
+titulo: Arquitetura e interfaces do hardware
+direction: right
+
+fonte: "Alimentação\n5 V" {class: bloco; left: 0; top: 820; width: 300; height: 100}
+pir: "PIR HC-SR501\nAlimentado durante o sono" {class: bloco; left: 0; top: 180; width: 300; height: 100}
+placa: Freenove ESP32-S3 {
+  class: grupo
+  direction: right
+  left: 620
+  top: 0
+  width: 1080
+  height: 1030
+  mcu: "ESP32-S3\nCPU, GPIO, RTC e Wi-Fi" {class: destaque; left: 600; top: 420; width: 370; height: 140}
+  memorias: "Flash 8 MB / PSRAM 8 MB\nFirmware, NVS e buffers" {class: bloco; left: 600; top: 70; width: 370; height: 110}
+  camera: "Câmera GC0308\n320 × 240 / RGB565" {class: bloco; left: 50; top: 220; width: 300; height: 110}
+  cartao: "Slot microSD\nFAT/FAT32" {class: bloco; shape: cylinder; left: 600; top: 790; width: 370; height: 110}
+  mcu <-> memorias: Barramentos do módulo
+  camera -> mcu: "DVP de 8 bits\nVSYNC6 / HREF7 / PCLK13"
+  mcu -> camera: "SCCB / I²C: SDA4, SCL5\nXCLK15: 20 MHz"
+  mcu <-> cartao: "SDMMC de 1 bit / DMA\nCMD38, CLK39, D0=40"
+}
+roteador: "Roteador do parque\nRede e internet" {class: bloco; left: 2100; top: 420; width: 320; height: 140}
+celular: "Celular ou notebook\nAjustes e dashboard" {class: bloco; left: 2100; top: 820; width: 320; height: 140}
+fonte -> placa: Alimentação da placa
+fonte -> pir: 5 V / GND comum
+pir -> placa.mcu: OUT de 3,3 V / GPIO1 / EXT0
+placa.mcu <-> roteador: Wi-Fi 2,4 GHz
+roteador <-> celular: Rede local e internet

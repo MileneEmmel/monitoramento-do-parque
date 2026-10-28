@@ -1,0 +1,53 @@
+...@_tema
+titulo: Organização do software
+direction: right
+
+classes: {
+  funcao: {label.near: center-center; style.font-size: 30; style.fill: "#EFF6EA"; style.stroke: "#438256"; style.font-color: "#173A2B"; style.border-radius: 10}
+  principal: {label.near: center-center; style.font-size: 30; style.fill: "#1E5A3B"; style.stroke: "#1E5A3B"; style.font-color: "#FFFFFF"; style.border-radius: 10}
+}
+esp: "Na ESP32-S3" {
+  class: grupo
+  style.font-size: 32
+  left: 0; top: 0; width: 1440; height: 650
+  detectar: "Câmera e IA\nLocalizar pessoas" {
+    class: funcao
+    left: 40; top: 100; width: 270; height: 130
+  }
+  contar: "Contagem\nEntradas e saídas" {
+    class: principal
+    left: 400; top: 100; width: 270; height: 130
+  }
+  gravar: "Histórico\nGravar no microSD" {
+    class: funcao
+    left: 760; top: 100; width: 270; height: 130
+  }
+  enviar: "Envio à nuvem\nConfirmar os lotes" {
+    class: funcao
+    left: 1120; top: 100; width: 270; height: 130
+  }
+  local: "Página local\nCâmera, rede e monitor" {
+    class: funcao
+    left: 40; top: 440; width: 380; height: 130
+  }
+  energia: "PIR e controle de energia\nDecidir quando dormir" {
+    class: funcao
+    left: 700; top: 440; width: 470; height: 130
+  }
+  detectar -> contar: Posições {style.font-size: 26}
+  contar -> gravar: Totais {style.font-size: 26}
+  gravar -> enviar: Registros {style.font-size: 26}
+  detectar -> local: Prévia {style.font-size: 26}
+  detectar -> energia: Presença {style.stroke-dash: 4; style.font-size: 26}
+}
+banco: "Supabase\nGuardar o histórico" {
+  class: funcao
+  shape: cylinder
+  left: 1620; top: 100; width: 330; height: 130
+}
+painel: "Dashboard remoto\nConsultar e exportar" {
+  class: funcao
+  left: 1620; top: 440; width: 330; height: 130
+}
+esp.enviar -> banco: HTTPS {style.font-size: 26}
+banco -> painel: Dados autorizados {style.font-size: 26}

@@ -1,0 +1,23 @@
+...@_tema
+titulo: Estados de operação e baixo consumo
+direction: right
+
+desligado: "DESLIGADO\nSem alimentação" {class: estado; left: 0; top: 0; width: 330; height: 100}
+inicializando: "INICIALIZANDO\nRestaurar totais e serviços" {class: estado; left: 0; top: 300; width: 330; height: 120}
+ativa: "OPERAÇÃO ATIVA\nAguardar presença ou\ncapturar, detectar e contar" {class: destaque; left: 620; top: 300; width: 350; height: 120}
+recuperando: "RECUPERANDO CÂMERA\nUma tentativa por boot" {class: estado; left: 620; top: 740; width: 350; height: 120}
+falha: "FALHA DE CÂMERA\nAvisar e manter serviços" {class: estado; left: 1220; top: 740; width: 350; height: 120}
+sincronizando: "PREPARANDO SONO\nPersistir e sincronizar" {class: estado; left: 1220; top: 300; width: 350; height: 120}
+sono: "DEEP SLEEP\nSem IA e sem Wi-Fi" {class: estado; left: 1840; top: 300; width: 350; height: 120}
+
+desligado -> inicializando: Alimentação ligada
+inicializando -> ativa: Boot normal ou PIR
+inicializando -> sincronizando: "[modo PIR / só timer]\nSem atividade"
+ativa -> sincronizando: "Modo PIR e GPIO baixo\n30 s sem atividade\nCarência encerrada"
+ativa -> recuperando: "[câmera solicitada]\n5 s sem quadros ou falha inicial"
+recuperando -> ativa: Quadro válido em até 10 s
+recuperando -> falha: Falha ou prazo encerrado
+falha -> sincronizando: "[elegível para sono]"
+sincronizando -> ativa: "Nova atividade ou\nfechamento inseguro\nCancelar preparo"
+sincronizando -> sono: "Fechamento seguro\nArmar despertar"
+sono -> inicializando: GPIO1 alto ou timer de 6 h / novo boot

@@ -1,0 +1,37 @@
+...@_tema
+titulo: Envio à nuvem e sono — sem falhas
+direction: down
+
+# Cenário com envio concluído dentro do prazo, sem nova atividade
+# nem nova revisão no fechamento final.
+# Repetições por nova revisão, falhas e cancelamentos estão descritos no guia.
+fechamento: "" {
+  shape: sequence_diagram
+  energia: "Controle do\nsono" {class: bloco; width: 210; height: 90}
+  contador: "Totais na ESP" {class: bloco; width: 210; height: 90}
+  diario: "Histórico no\nmicroSD" {class: bloco; width: 210; height: 90}
+  envio: "Envio de dados" {class: bloco; width: 210; height: 90}
+  banco: "Nuvem\nSupabase" {class: bloco; width: 210; height: 90}
+
+  energia -> contador: "Salvar totais na\nmemória interna"
+  energia -> diario: "Gravar contagens atuais\ne liberar acesso ao histórico"
+  diario -> energia: Gravação concluída {style.stroke-dash: 4}
+  energia -> envio: "Enviar pendências à nuvem\nLimite total: 120 s"
+
+  lotes: "loop [repetir enquanto houver pendências e tempo disponível]" {
+    envio -> diario: Ler até 8 registros
+    diario -> envio: "Devolver registros com\nidentificadores fixos" {style.stroke-dash: 4}
+    envio -> banco: "Enviar registros e mudanças\nno estado da placa por HTTPS"
+    banco -> envio: "Confirmar recebimento de\ntodos os registros do lote" {style.stroke-dash: 4}
+    envio -> diario: "Salvar até onde os registros\nforam confirmados pela nuvem"
+    envio -> envio: Aguardar 2 s entre lotes
+  }
+
+  envio -> energia: Sem pendências de envio {style.stroke-dash: 4}
+  energia -> envio: Pausar novos envios
+  energia -> contador: "Pausar contagem e\nsalvar totais finais"
+  energia -> diario: "Gravar contagens finais\ne bloquear acesso até dormir"
+  energia -> energia: "Desligar Wi-Fi e conferir\nse continua sem atividade"
+  energia -> energia: "Programar despertar pelo\nPIR ou após 6 h"
+  energia -> energia: "Registrar início do sono\ne entrar em deep sleep"
+}

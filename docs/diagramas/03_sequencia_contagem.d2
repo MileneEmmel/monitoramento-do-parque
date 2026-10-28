@@ -1,0 +1,32 @@
+...@_tema
+titulo: Sequência de detecção e contagem
+direction: down
+
+# Um resultado por imagem. O diário é gravado por uma tarefa independente.
+# Os nomes de código correspondentes aos participantes estão no guia.
+ciclo: "" {
+  shape: sequence_diagram
+  ia: "Câmera e\ninteligência artificial" {class: bloco; width: 240; height: 90}
+  aplicacao: "Controle do\nsistema" {class: bloco; width: 220; height: 90}
+  contador: "Contagem de\npessoas" {class: bloco; width: 220; height: 90}
+  energia: "Controle do\nsono" {class: bloco; width: 220; height: 90}
+
+  quadros: "loop [repetir para cada imagem, com a câmera ativa]" {
+    ia -> ia: Obter imagem da câmera
+    ia -> ia: Detectar pessoas na imagem
+    ia -> aplicacao: "Enviar pessoas detectadas\ne suas posições"
+    aplicacao -> energia: "Informar imagem analisada\ne se há pessoas"
+    aplicacao -> contador: Analisar as pessoas detectadas
+    contador -> contador: "Remover trajetórias sem\ndetecção há mais de 2 s"
+    contador -> contador: "Relacionar cada detecção\na uma única trajetória"
+    contador -> contador: "Atualizar posição, velocidade\ne lado das linhas A/B"
+    contador -> contador: "Verificar cruzamento de A/B\ncom pelo menos 2 observações"
+    passagem: "opt [somente se a passagem for confirmada]" {
+      contador -> contador: "Somar entrada ou saída\nAtualizar lado de origem"
+    }
+    contador -> aplicacao: "Devolver totais, identificadores\ne situação das trajetórias" {style.stroke-dash: 4}
+    previa: "opt [somente se houver solicitação de imagem]" {
+      aplicacao -> aplicacao: "Preparar imagem com os\nresultados para visualização"
+    }
+  }
+}

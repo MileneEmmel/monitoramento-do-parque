@@ -1,0 +1,58 @@
+...@_tema
+titulo: Casos de uso do sistema
+direction: right
+
+# Geometria em paisagem. TALA mantém as posições explícitas.
+# A silhueta nativa mantém dimensões fixas; o rótulo fica fora dela.
+classes: {
+  objetivo: {
+    shape: oval
+    width: 400
+    height: 110
+    label.near: center-center
+    style: {fill: "#EFF6EA"; stroke: "#438256"; font-color: "#173A2B"; font-size: 20; bold: false; stroke-width: 2}
+  }
+}
+
+leitor: "Usuário\nautorizado" {class: ator; left: 70; top: 150; label.near: outside-left-center}
+proprietario: "Proprietário" {class: ator; left: 70; top: 560; label.near: outside-left-center}
+tecnico: "Responsável\npela instalação" {class: ator; left: 1540; top: 490; label.near: outside-right-center}
+
+# O sujeito inclui firmware, página local, dashboard e serviços de nuvem.
+# Por isso ESP, PIR, câmera e Supabase não são atores externos neste modelo.
+sistema: Monitoramento do parque {
+  class: grupo
+  left: 330
+  top: 0
+  width: 1080
+  height: 830
+  style.border-radius: 0
+  label.near: top-left
+
+  consultar: "UC01\nConsultar visitação e histórico" {class: objetivo; left: 50; top: 80}
+  exportar: "UC02\nExportar relatório CSV" {class: objetivo; left: 50; top: 250}
+  credencial: "UC03\nGerenciar credencial da placa" {class: objetivo; left: 50; top: 470}
+  identificar: "UC04\nEditar identificação do parque" {class: objetivo; left: 50; top: 640}
+
+  calibrar: "UC05\nAjustar câmera e linhas A/B" {class: objetivo; left: 630; top: 160}
+  monitorar: "UC06\nValidar PIR e ciclos de sono" {class: objetivo; left: 630; top: 400}
+  configurar: "UC07\nConfigurar rede e\nmodo de operação" {class: objetivo; left: 630; top: 640}
+}
+
+# Linhas contínuas sem setas: participação, não fluxo de dados.
+leitor -- sistema.consultar
+leitor -- sistema.exportar
+proprietario -- sistema.credencial
+proprietario -- sistema.identificar
+tecnico -- sistema.calibrar
+tecnico -- sistema.monitorar
+tecnico -- sistema.configurar
+
+# O proprietário também pode consultar e exportar: especialização de papel.
+# Triângulo vazio aponta para o ator mais geral.
+proprietario -> leitor: {
+  target-arrowhead: {shape: triangle; style.filled: false}
+}
+
+# O visitante é o alvo da observação, não um usuário desta interface.
+# A contagem autônoma é detalhada nas sequências, estados e fluxograma.
